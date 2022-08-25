@@ -1,26 +1,26 @@
-import time
 import math
-from map import *
-from constants import *
-from path_find_algo import *
 import sys
-import numpy as np
+import time
+
+from constants import *
 from fastest_path_algo import FastestPath
+from map import *
+from path_find_algo import *
+from setup_logger import logger
 
 
 class Robot:
     def __init__(self, simulator):
         self.simulator = simulator
-        self.map = Map()
-        self.y = config.map_size["height"] - 2
-        self.x = 1
-        self.consecutive_forward = 1
-        self.bearing = Bearing.NORTH
-        self.update_map = True
-        self.robot_rpi_temp_movement = []
+        self.map: Map = Map()
+        self.y: int = config.map_size["height"] - 2
+        self.x: int = 1
+        self.consecutive_forward: int = 1
+        self.bearing: Bearing = Bearing.NORTH
+        self.update_map: bool = True
+        self.robot_rpi_temp_movement: List[str] = []
         self.rpi_goal = ["obstacles"]
-        # tuple of location coordinates and bearing
-        self.prev_loc = [((1, 18), Bearing.NORTH)]
+        self.prev_loc = (1, 18, Bearing.NORTH)  # (x, y, Bearing)
 
     def validate(self, x, y):
         if (
@@ -75,7 +75,7 @@ class Robot:
         self.y = config.map_size["height"] - 2
         self.x = 1
         self.bearing = Bearing.NORTH
-        self.prev_loc = [((1, 18), Bearing.NORTH)]
+        self.prev_loc = (1, 18, Bearing.NORTH)
 
     def check_front(self):
         if (
@@ -128,92 +128,40 @@ class Robot:
                 return False
         return True
 
-    def get_target_movement(self, from_dir, to_dir):
+    def get_target_movement(self, from_dir: Bearing, to_dir) -> None:
         if from_dir == to_dir:
             return
 
-        if from_dir == Bearing.NORTH:
-            self.get_target_movement_north(to_dir)
-        elif from_dir == Bearing.EAST:
-            self.get_target_movement_east(to_dir)
-        elif from_dir == Bearing.SOUTH:
-            self.get_target_movement_south(to_dir)
-        else:
-            self.get_target_movement_west(to_dir)
+        movements = {
+            Bearing.NORTH: {
+                Bearing.EAST: [Movement.RIGHT],
+                Bearing.SOUTH: [Movement.RIGHT] * 2,
+                Bearing.WEST: [Movement.LEFT],
+            },
+            Bearing.EAST: {
+                Bearing.SOUTH: [Movement.RIGHT],
+                Bearing.WEST: [Movement.RIGHT] * 2,
+                Bearing.NORTH: [Movement.LEFT],
+            },
+            Bearing.SOUTH: {
+                Bearing.WEST: [Movement.RIGHT],
+                Bearing.NORTH: [Movement.RIGHT] * 2,
+                Bearing.EAST: [Movement.LEFT],
+            },
+            Bearing.WEST: {
+                Bearing.NORTH: [Movement.RIGHT],
+                Bearing.EAST: [Movement.RIGHT] * 2,
+                Bearing.SOUTH: [Movement.LEFT],
+            },
+        }
 
-    def get_target_movement_north(self, to_dir):
-        if to_dir == Bearing.EAST:
-            self.simulator.robot_movement.append(MOVEMENT.RIGHT)
-            self.robot_rpi_temp_movement.append(MOVEMENT.RIGHT)
-            self.bearing = Bearing.EAST
-
-        elif to_dir == Bearing.WEST:
-            self.simulator.robot_movement.append(MOVEMENT.LEFT)
-            self.robot_rpi_temp_movement.append(MOVEMENT.LEFT)
-            self.bearing = Bearing.WEST
-
-        elif to_dir == Bearing.SOUTH:
-            self.simulator.robot_movement.append(MOVEMENT.RIGHT)
-            self.simulator.robot_movement.append(MOVEMENT.RIGHT)
-            self.robot_rpi_temp_movement.append(MOVEMENT.RIGHT)
-            self.robot_rpi_temp_movement.append(MOVEMENT.RIGHT)
-            self.bearing = Bearing.SOUTH
-
-    def get_target_movement_east(self, to_dir):
-        if to_dir == Bearing.NORTH:
-            self.simulator.robot_movement.append(MOVEMENT.LEFT)
-            self.robot_rpi_temp_movement.append(MOVEMENT.LEFT)
-            self.bearing = Bearing.NORTH
-
-        elif to_dir == Bearing.SOUTH:
-            self.simulator.robot_movement.append(MOVEMENT.RIGHT)
-            self.robot_rpi_temp_movement.append(MOVEMENT.RIGHT)
-            self.bearing = Bearing.SOUTH
-
-        elif to_dir == Bearing.WEST:
-            self.simulator.robot_movement.append(MOVEMENT.RIGHT)
-            self.simulator.robot_movement.append(MOVEMENT.RIGHT)
-            self.robot_rpi_temp_movement.append(MOVEMENT.RIGHT)
-            self.robot_rpi_temp_movement.append(MOVEMENT.RIGHT)
-            self.bearing = Bearing.WEST
-
-    def get_target_movement_south(self, to_dir):
-        if to_dir == Bearing.EAST:
-            self.simulator.robot_movement.append(MOVEMENT.LEFT)
-            self.robot_rpi_temp_movement.append(MOVEMENT.LEFT)
-            self.bearing = Bearing.EAST
-
-        elif to_dir == Bearing.WEST:
-            self.simulator.robot_movement.append(MOVEMENT.RIGHT)
-            self.robot_rpi_temp_movement.append(MOVEMENT.RIGHT)
-            self.bearing = Bearing.WEST
-
-        elif to_dir == Bearing.NORTH:
-            self.simulator.robot_movement.append(MOVEMENT.RIGHT)
-            self.simulator.robot_movement.append(MOVEMENT.RIGHT)
-            self.robot_rpi_temp_movement.append(MOVEMENT.RIGHT)
-            self.robot_rpi_temp_movement.append(MOVEMENT.RIGHT)
-            self.bearing = Bearing.NORTH
-
-    def get_target_movement_west(self, to_dir):
-        if to_dir == Bearing.NORTH:
-            self.simulator.robot_movement.append(MOVEMENT.RIGHT)
-            self.robot_rpi_temp_movement.append(MOVEMENT.RIGHT)
-            self.bearing = Bearing.NORTH
-        elif to_dir == Bearing.SOUTH:
-            self.simulator.robot_movement.append(MOVEMENT.LEFT)
-            self.robot_rpi_temp_movement.append(MOVEMENT.LEFT)
-            self.bearing = Bearing.SOUTH
-        elif to_dir == Bearing.EAST:
-            self.simulator.robot_movement.append(MOVEMENT.RIGHT)
-            self.simulator.robot_movement.append(MOVEMENT.RIGHT)
-            self.robot_rpi_temp_movement.append(MOVEMENT.RIGHT)
-            self.robot_rpi_temp_movement.append(MOVEMENT.RIGHT)
-            self.bearing = Bearing.EAST
+        self.simulator.robot_movement.extend(movements[from_dir][to_dir])
+        self.robot_rpi_temp_movement.extend(movements[from_dir][to_dir])
+        self.bearing = Bearing.int_to_bearing(to_dir)
 
     def fastestPath(self, maze):
         self.simulator.temp_pairs = []
-        print("Fastest path")
+        logger.debug("Fastest path")
         start = [1, 18, 10]
         new_goal_nodes = []
         g = self.simulator.goal_pairs
@@ -262,7 +210,7 @@ class Robot:
         for i in g:
             encoded_pairs[count] = i
             count += 1
-        print("encoded pairs", encoded_pairs)
+        logger.debug(f"encoded_pairs: {encoded_pairs}")
         dist = []
         index = 0
         for i in g:
@@ -278,7 +226,7 @@ class Robot:
         n = len(g)
         fastest_path = FastestPath()
         path = fastest_path.plan_path(dist, n)
-        print(path)
+        logger.debug(path)
         for i in path:
             if i != 0:
                 new_goal_nodes.append(encoded_pairs[i])
@@ -287,7 +235,7 @@ class Robot:
                     if k[j][0] == t[0] and k[j][1] == t[1]:
                         self.rpi_goal.append(str(int(k[j][3])))
                         break
-        print(self.rpi_goal)
+        logger.debug(self.rpi_goal)
         for x in new_goal_nodes:
             if x[2] == 10:
                 tempGoal = [x[0], x[1] - 3]
@@ -302,6 +250,12 @@ class Robot:
         self.hamiltonian_path_search(maze, new_goal_nodes)
 
     def hamiltonian_path_search(self, maze, target_obstacles):
+        """_summary_
+
+        Args:
+            maze (_type_): _description_
+            target_obstacles (_type_): _description_
+        """
         start = [18, 1, 10]
         end = [
             target_obstacles[0][1],
@@ -367,7 +321,9 @@ class Robot:
             )
             self.simulator.robot_movement.append("x")
             self.robot_rpi_temp_movement.append("x")
-            print("ROBOT TEMP: ", self.robot_rpi_temp_movement)
+            logger.debug(
+                f"Path to scan obstacle {i} at {target_obstacles[i]}: {self.robot_rpi_temp_movement}",
+            )
             self.simulator.movement_to_rpi.append(self.robot_rpi_temp_movement)
             start = end
             if i + 1 < len(target_obstacles):
@@ -396,6 +352,6 @@ class Robot:
             goal = self.simulator.temp_pairs.pop(0)
             map_sim[goal[1]][goal[0]] = 1
             time.sleep(1)
-        self.simulator.update_map(radius=3)
+        self.simulator.update_map(full=True)
         # Refresh every 0.5 sec
         self.simulator.job = self.simulator.root.after(100, self.displayMovement)

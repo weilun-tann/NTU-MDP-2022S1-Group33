@@ -1,13 +1,12 @@
-from time import sleep
-from tkinter import *
 import tkinter.ttk as ttk
+from tkinter import *
 from tkinter import scrolledtext
-from map import *
+
 import config
-from constants import *
-from robot import Robot
 from comms import Communication
-import time
+from constants import *
+from map import *
+from robot import Robot
 
 
 class Simulator:
@@ -108,13 +107,13 @@ class Simulator:
             msg = general_queue.get()
             print(msg[:3])
 
-            if msg[:3] == START_EXPLORATION:
+            if msg[:3] == START_EXPLORATION:  # TODO - these are undefined
                 logging.debug("Starting exploration")
                 self.hamiltonian_path()
-            elif msg[:3] == START_FASTEST_PATH:
+            elif msg[:3] == START_FASTEST_PATH:  # TODO - these are undefined
                 logging.debug("Starting fp")
                 self.findFP()
-            elif msg[:3] == RESET:
+            elif msg[:3] == RESET:  # TODO - these are undefined
                 self.reset()
         self.root.after(200, self.event_loop)
 
@@ -209,7 +208,8 @@ class Simulator:
             if [x, y] not in self.temp_pairs:
                 self.temp_pairs.append([x, y])
         elif map_sim[y][x] == 2:
-            self.temp_pairs.remove([x, y])
+            if [x, y] in self.temp_pairs:
+                self.temp_pairs.remove([x, y])
 
         direction = ""
         # Start box
@@ -219,16 +219,16 @@ class Simulator:
             color = "gray64"
             self.canvas.itemconfig(config.map_cells_2[y][x], text="")
         elif map_sim[y][x] == 10:
-            direction = "N"
+            direction = "^"
             color = "magenta"
         elif map_sim[y][x] == 11:
-            direction = "E"
+            direction = ">"
             color = "peach puff"
         elif map_sim[y][x] == 12:
-            direction = "S"
-            color = "dark slate gray"
+            direction = "v"
+            color = "white"
         elif map_sim[y][x] == 13:
-            direction = "W"
+            direction = "<"
             color = "chocolate1"
         else:
             color = "light pink"
@@ -242,7 +242,7 @@ class Simulator:
             )
             self.canvas.bind("<ButtonPress-1>", self.on_click)
         else:
-            if direction in ["N", "S", "E", "W"]:
+            if direction in ["^", "v", ">", "<"]:
                 wall_radius(1, "light pink")
                 self.canvas.itemconfig(
                     config.map_cells_2[y][x], text=direction, fill="black", font="bold"
@@ -283,7 +283,14 @@ class Simulator:
         self.goal_pairs = []
         self.update_goal_pairs()
 
-    def update_map(self, radius=2, full=False):
+    def update_map(self, radius: int = 2, full: bool = False) -> None:
+        """Updates the map either completely, or in the vicinity of the robot
+
+        Args:
+            radius (int, optional): All squares in the bounding box with top-left corner as (x - radius, y - radius) and bottom-right corner
+            as (x + radius, y + radius) will be updated, where (x, y) is the current coordinate of the robot. Defaults to 2.
+            full (bool, optional): If provided and set to True, the entire map will be updated, regardless of whether or not radius is provided. Defaults to False.
+        """
         if full:
             y_range = range(config.map_size["height"])
             x_range = range(config.map_size["width"])

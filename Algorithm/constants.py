@@ -1,4 +1,4 @@
-from enum import IntEnum, Enum
+from enum import IntEnum
 from queue import Queue
 
 general_queue = Queue(10)
@@ -65,8 +65,20 @@ class Bearing(IntEnum):
     def is_diag_bearing(current_bearing):
         return current_bearing.value % 2 == 1
 
+    @staticmethod
+    def int_to_bearing(bearing: int):
+        """Converts an integer to a Bearing enum object
 
-class MOVEMENT:
+        Args:
+            bearing (int): The bearing matching one of the 8 enum directions specified in this class
+
+        Returns:
+            _type_: The bearing object, if the bearing is valid (0-7)
+        """
+        return Bearing(bearing)
+
+
+class Movement:
     FORWARD = "w"
     LEFT = "a"
     RIGHT = "d"
@@ -77,7 +89,7 @@ class MOVEMENT:
     RIGHT_DIAG = 5
 
 
-class COST(IntEnum):
+class Cost(IntEnum):
     INFINITE_COST = 9999
     MOVE_COST = 10
     MOVE_COST_DIAG = 15
