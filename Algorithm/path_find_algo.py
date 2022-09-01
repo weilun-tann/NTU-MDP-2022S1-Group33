@@ -1,4 +1,5 @@
 import numpy as np
+from setup_logger import logger
 
 
 class Node:
@@ -54,6 +55,7 @@ def search(maze, cost, start, end):
     :param end:
     :return:
     """
+    logger.debug(f"Searching for a path from {start} to {end}")
 
     # Create start and end node with initized values for g, h and f
     start_node = Node(None, tuple(start))

@@ -1,7 +1,4 @@
 from enum import IntEnum
-from queue import Queue
-
-general_queue = Queue(10)
 
 
 class Bearing(IntEnum):

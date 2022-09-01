@@ -1,3 +1,4 @@
+import time
 import tkinter.ttk as ttk
 from tkinter import *
 from tkinter import scrolledtext
@@ -7,6 +8,7 @@ from comms import Communication
 from constants import *
 from map import *
 from robot import Robot
+from setup_logger import logger
 
 
 class Simulator:
@@ -24,10 +26,12 @@ class Simulator:
         self.robot_w = []
         self.robot_temp_movement = []
         self.robot_movement = []
-        self.movement_to_rpi = []
+        self.movement_to_rpi = (
+            []
+        )  # movement_to_rpi[i] = list of "wasd" actions to take to move the i'th obstacle
         self.goal_pairs = []
         self.temp_pairs = []
-        self.gp = []
+        self.obstacles = []
         self.communicate = Communication()
         for i in range(3):
             self.robot_n.append([])
@@ -99,41 +103,43 @@ class Simulator:
         self.control_panel.columnconfigure(0, weight=1)
         self.control_panel.rowconfigure(0, weight=1)
         self.update_map(full=True)
-        self.event_loop()
         self.root.mainloop()
 
-    def event_loop(self):
-        while not general_queue.empty():
-            msg = general_queue.get()
-            print(msg[:3])
-
-            if msg[:3] == START_EXPLORATION:  # TODO - these are undefined
-                logging.debug("Starting exploration")
-                self.hamiltonian_path()
-            elif msg[:3] == START_FASTEST_PATH:  # TODO - these are undefined
-                logging.debug("Starting fp")
-                self.findFP()
-            elif msg[:3] == RESET:  # TODO - these are undefined
-                self.reset()
-        self.root.after(200, self.event_loop)
-
     def android_map_formation(self):
-        data = self.communicate.get_obstacles()
-        self.gp = data
-        print("gp", self.gp)
-        self.map.create_map(data)
+        self.obstacles = self.communicate.get_obstacles()
+        logger.debug(f"self.obstacles: {self.obstacles}")
+        self.map.create_map(self.obstacles)
         self.reset()
         self.robot.fastestPath(map_sim)
-        self.movement_to_rpi.insert(0, self.robot.rpi_goal)
-        print(self.movement_to_rpi)
-        for i in self.movement_to_rpi:
-            self.communicate.communicate(i)
-            sendNext = False
-            while sendNext == False:
-                if self.communicate.msg == "Movement Done":
-                    print("obstacle done")
-                    sendNext = True
-                    self.communicate.msg = ""
+
+        # Send the movements back to the client
+        for i, movement_to_obstacle in enumerate(self.movement_to_rpi):
+            logger.debug(
+                f"Sending movement (one by one) towards obstacle {i} - {movement_to_obstacle}"
+            )
+
+            for movement in movement_to_obstacle:
+                self.communicate.communicate(movement)
+
+                while True:
+                    logger.debug(
+                        "[BLOCKING] Server waiting for movement confirmation from client..."
+                    )
+
+                    if self.communicate.msg == "Movement Done":
+                        logger.debug(
+                            f"Server received movement confirmation from client for (obstacle {i}, movement {movement}"
+                        )
+                        self.communicate.msg = ""
+                        break
+                    else:
+                        logger.debug(
+                            "No confirmation received. Sleeping for 1 second..."
+                        )
+                        time.sleep(1)
+
+        # All movements have been sent and confirmed by RPi. Safe to disconnect
+        self.communicate.disconnect()
 
     def findFP(self):
         self.robot.fastestPath(map_sim)

@@ -19,7 +19,6 @@ class Robot:
         self.bearing: Bearing = Bearing.NORTH
         self.update_map: bool = True
         self.robot_rpi_temp_movement: List[str] = []
-        self.rpi_goal = ["obstacles"]
         self.prev_loc = (1, 18, Bearing.NORTH)  # (x, y, Bearing)
 
     def validate(self, x, y):
@@ -161,7 +160,6 @@ class Robot:
 
     def fastestPath(self, maze):
         self.simulator.temp_pairs = []
-        logger.debug("Fastest path")
         start = [1, 18, 10]
         new_goal_nodes = []
         g = self.simulator.goal_pairs
@@ -169,41 +167,37 @@ class Robot:
         encoded_pairs = {}
         count = 0
         k = []
-        for i in range(len(self.simulator.gp)):
-            if self.simulator.gp[i][2] == 10:
+        for i in range(len(self.simulator.obstacles)):
+            if self.simulator.obstacles[i][2] == 10:
                 k.append(
                     [
-                        self.simulator.gp[i][0],
-                        self.simulator.gp[i][1] - 4,
+                        self.simulator.obstacles[i][0],
+                        self.simulator.obstacles[i][1] - 4,
                         12,
-                        self.simulator.gp[i][3],
                     ]
                 )
-            elif self.simulator.gp[i][2] == 11:
+            elif self.simulator.obstacles[i][2] == 11:
                 k.append(
                     [
-                        self.simulator.gp[i][0] + 4,
-                        self.simulator.gp[i][1],
+                        self.simulator.obstacles[i][0] + 4,
+                        self.simulator.obstacles[i][1],
                         13,
-                        self.simulator.gp[i][3],
                     ]
                 )
-            elif self.simulator.gp[i][2] == 12:
+            elif self.simulator.obstacles[i][2] == 12:
                 k.append(
                     [
-                        self.simulator.gp[i][0],
-                        self.simulator.gp[i][1] + 4,
+                        self.simulator.obstacles[i][0],
+                        self.simulator.obstacles[i][1] + 4,
                         10,
-                        self.simulator.gp[i][3],
                     ]
                 )
             else:
                 k.append(
                     [
-                        self.simulator.gp[i][0] - 4,
-                        self.simulator.gp[i][1],
+                        self.simulator.obstacles[i][0] - 4,
+                        self.simulator.obstacles[i][1],
                         11,
-                        self.simulator.gp[i][3],
                     ]
                 )
 
@@ -212,7 +206,6 @@ class Robot:
             count += 1
         logger.debug(f"encoded_pairs: {encoded_pairs}")
         dist = []
-        index = 0
         for i in g:
             temp = []
             for j in g:
@@ -233,9 +226,7 @@ class Robot:
                 t = encoded_pairs[i]
                 for j in range(len(k)):
                     if k[j][0] == t[0] and k[j][1] == t[1]:
-                        self.rpi_goal.append(str(int(k[j][3])))
                         break
-        logger.debug(self.rpi_goal)
         for x in new_goal_nodes:
             if x[2] == 10:
                 tempGoal = [x[0], x[1] - 3]
@@ -287,31 +278,31 @@ class Robot:
                 for k in range(len(move)):
                     if move[k] in self.simulator.robot_temp_movement:
                         if self.bearing == direction[k]:
-                            self.simulator.robot_movement.append("w")
-                            self.robot_rpi_temp_movement.append("w")
+                            self.simulator.robot_movement.append(Movement.FORWARD)
+                            self.robot_rpi_temp_movement.append(Movement.FORWARD)
                             tempStart = move[k]
                             self.simulator.robot_temp_movement.remove(tempStart)
                             break
                         elif self.bearing == direction[(k + 2) % 4]:
-                            self.simulator.robot_movement.append("s")
-                            self.robot_rpi_temp_movement.append("s")
+                            self.simulator.robot_movement.append(Movement.REVERSE)
+                            self.robot_rpi_temp_movement.append(Movement.REVERSE)
                             tempStart = move[k]
                             self.simulator.robot_temp_movement.remove(tempStart)
                             break
                         elif self.bearing == direction[(k + 1) % 4]:
-                            self.simulator.robot_movement.append("a")
-                            self.simulator.robot_movement.append("w")
-                            self.robot_rpi_temp_movement.append("a")
-                            self.robot_rpi_temp_movement.append("w")
+                            self.simulator.robot_movement.append(Movement.LEFT)
+                            self.simulator.robot_movement.append(Movement.FORWARD)
+                            self.robot_rpi_temp_movement.append(Movement.LEFT)
+                            self.robot_rpi_temp_movement.append(Movement.FORWARD)
                             self.bearing = Bearing.prev_bearing(self.bearing)
                             tempStart = move[k]
                             self.simulator.robot_temp_movement.remove(tempStart)
                             break
                         elif self.bearing == direction[(k + 3) % 4]:
-                            self.simulator.robot_movement.append("d")
-                            self.simulator.robot_movement.append("w")
-                            self.robot_rpi_temp_movement.append("d")
-                            self.robot_rpi_temp_movement.append("w")
+                            self.simulator.robot_movement.append(Movement.RIGHT)
+                            self.simulator.robot_movement.append(Movement.FORWARD)
+                            self.robot_rpi_temp_movement.append(Movement.RIGHT)
+                            self.robot_rpi_temp_movement.append(Movement.FORWARD)
                             self.bearing = Bearing.next_bearing(self.bearing)
                             tempStart = move[k]
                             self.simulator.robot_temp_movement.remove(tempStart)
@@ -340,13 +331,13 @@ class Robot:
         if not self.simulator.robot_movement:
             return
         movement = self.simulator.robot_movement.pop(0)
-        if movement == "w":
+        if movement == Movement.FORWARD:
             self.move()
-        elif movement == "a":
+        elif movement == Movement.LEFT:
             self.left()
-        elif movement == "d":
+        elif movement == Movement.RIGHT:
             self.right()
-        elif movement == "s":
+        elif movement == Movement.REVERSE:
             self.reverse()
         elif movement == "x":
             goal = self.simulator.temp_pairs.pop(0)
