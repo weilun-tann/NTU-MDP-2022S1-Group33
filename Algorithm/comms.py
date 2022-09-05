@@ -6,53 +6,40 @@ from setup_logger import logger
 
 
 class Communication:
+    """
+    A TCP socket (Algo) client to communiacate the TCP socket (RPi) server listening at (self.ipv4, self.port)
+    """
+
     def __init__(self):
-        self.ipv4: str = socket.gethostbyname(
-            socket.gethostname()
-        )  # server's ipv4 address
-        self.port: int = (
-            5005  # port the server is listening on for new websocket connections
-        )
-        self.socket: socket.socket = (
+        self.ipv4: str = socket.gethostbyname(socket.gethostname()) # TODO - switch to "192.168.33.1" when before deployed to RPi  # server's ipv4 address
+        self.port: int = 5000  # server's port
+        self.client_socket: socket.socket = (
             socket.socket()
         )  # the socket object used for 2-way TCP communication with the RPi
-        self.connection: socket.socket = (
-            None  # represents a socket connection to a client
-        )
-        self.backlog: int = 0  # number of unaccepted connections that the server will allow before refusing new connections
         self.msg: str = "nothing"  # message received from the Rpi
-        self.message_format: str = "utf-8"  # message format for sending (encoding to a UTF-8 byte sequence) and receiving (decoding a UTF-8 byte sequence) data from the Rpi
+        self.msg_format: str = "utf-8"  # message format for sending (encoding to a UTF-8 byte sequence) and receiving (decoding a UTF-8 byte sequence) data from the Rpi
         self.read_limit_bytes: int = 2048  # number of bytes to read from the socket in a single blocking socket.recv command
 
-    def connect(self):
-        if self.connection and not self.connection._closed:
-            client_ip, client_port = self.connection.getpeername()
-            logger.warn(
-                f"There is already an active connection to a client at {client_ip}:{client_port}"
+    def connect(self) -> None:
+        """
+        Initiates a TCP socket connection to the server at (self.ipv4, self.port)
+        """
+        logger.debug(f"Connecting to the server at {self.ipv4}:{self.port}...")
+        self.client_socket.connect((self.ipv4, self.port))
+        logger.debug(f"Successfully connected to the server at {self.ipv4}:{self.port}")
+
+    def disconnect(self):
+        if not (self.client_socket and not self.client_socket._closed):
+            logger.warning(
+                "There is no active connection with a server currently. Unable to disconnect."
             )
             return
 
-        logger.debug(f"Server is trying to create a socket at {self.ipv4}:{self.port}")
-        self.socket.setsockopt(
-            socket.SOL_SOCKET, socket.SO_REUSEADDR, 1
-        )  # reuse the socket if it's already in use
-        self.socket.bind((self.ipv4, self.port))
+        logger.debug(f"Disconnecting from the server at {self.ipv4}:{self.port}...")
+        self.client_socket.shutdown(socket.SHUT_RDWR)
+        self.client_socket.close()
         logger.debug(
-            f"[BLOCKING] Server is now listening at {self.ipv4}:{self.port} and waiting for a client to connect..."
-        )
-        self.socket.listen(self.backlog)
-        (
-            self.connection,
-            _,
-        ) = (
-            self.socket.accept()
-        )  # blocking call, wait for new websocket connection to server
-        client_ipv4, client_port = self.connection.getpeername()
-        logger.debug(
-            f"Server has picked up a connected client at {client_ipv4}:{client_port}"
-        )
-        logger.debug(
-            f"Send your obstacles list (formatted as 'x1,y1,Direction1,x2,y2,Direction2,...') to the server first before pressing 'Create Map'"
+            f"Successfully disconnected from the server at {self.ipv4}:{self.port}"
         )
 
     def convert_movement_to_newline_ending_string(self, movements: List[str]) -> str:
@@ -66,15 +53,17 @@ class Communication:
         """
         return ",".join(movements) + "\n"
 
-    def send_data(self, data: str) -> None:
+    def send_message(self, message: str) -> None:
         """Sends string data to the RPi
 
         Args:
-            data (str): Data as a string
+            message (str): the unencoded raw string to send to the RPi
         """
-        client_ipv4, client_port = self.connection.getpeername()
-        logger.debug(f"Server is sending data to client {client_ipv4}: '{client_port}'")
-        self.connection.send(data.encode(self.message_format))
+        server_ipv4, server_port = self.client_socket.getpeername()
+        logger.debug(
+            f"Client is sending '{message}' to server at {server_ipv4}: '{server_port}'"
+        )
+        self.client_socket.send(message.encode(self.msg_format))
 
     def get_obstacles(self) -> List[Tuple[int, int, str]]:
         # TODO - convert all (x, y, direction) into namedtuple or dataclass
@@ -88,15 +77,15 @@ class Communication:
         Returns:
             List[Tuple[int, int, str]]: A list of obstacles in the format (x, y, direction)
         """
-        logger.debug("Server is waiting for the client to send the obstacles list")
+        logger.debug("Client is waiting for the server to send the obstacles list")
 
         while True:
-            logger.debug("[BLOCKING] Server listening for data from client...")
-            data = self.connection.recv(self.read_limit_bytes).strip()
+            logger.debug("[BLOCKING] Client listening for data from server...")
+            data = self.client_socket.recv(self.read_limit_bytes).strip()
 
             if len(data) > 0:
-                data = data.decode(self.message_format)
-                logger.debug(f"Server received data from client: '{data}'")
+                data = data.decode(self.msg_format)
+                logger.debug(f"Client received data from server: '{data}'")
                 obstacles = data.split(",")
                 new_obstacles = []
                 for i in range(0, len(obstacles), 3):
@@ -127,38 +116,25 @@ class Communication:
 
     def listen_to_rpi(self):
         """
-        Reads at most `self.read_limit_bytes` bytes from the socket and saves the data into `self.msg`
+        Reads at most `self.read_limit_bytes` bytes from the server and saves the data into `self.msg`
         """
-        logger.debug("[BLOCKING] Server listening for data from client...")
+        logger.debug("[BLOCKING] Client listening for data from server...")
 
-        self.msg = self.connection.recv(self.read_limit_bytes).strip()
+        self.msg = self.client_socket.recv(self.read_limit_bytes).strip()
 
         if len(self.msg) > 0 and self.msg != "nothing":
             self.msg = self.msg.decode("utf-8")
-            logger.debug(f"Server received data from client: '{self.msg}'")
+            logger.debug(f"Client received data from server: '{self.msg}'")
         else:
             logger.debug(
-                f"Server received empty data from client: '{self.msg}'. Sleeping for 1 second..."
+                f"Client received no data from server: '{self.msg}'. Sleeping for 1 second..."
             )
             time.sleep(1)
 
     def communicate(self, data, listen=True, write=True):
         if write and data:
             data = self.convert_movement_to_newline_ending_string(data)
-            logger.debug(f"Server sending data to the client: '{data}'")
-            self.send_data(data)
+            logger.debug(f"Client sending data to the server: '{data}'")
+            self.send_message(data)
         if listen:
             self.listen_to_rpi()
-
-    def disconnect(self):
-        if not self.connection or self.connection._closed:
-            logger.warning("There is no active connection with a client")
-            return
-
-        client_ipv4, client_port = self.connection.getpeername()
-        logger.debug(
-            f"Server closing the active connection to the client at {client_ipv4}:{client_port}"
-        )
-        self.connection.close()
-        logger.debug(f"Server closing its socket at {self.ipv4}:{self.port}")
-        self.socket.close()
