@@ -77,7 +77,7 @@ class Simulator:
         )
         hamiltonian_path_button.grid(column=0, row=0, sticky="ew")
         fastest_path_button = ttk.Button(
-            action_pane, text="Fastest Path", command=self.findFP
+            action_pane, text="Fastest Path", command=self.findFC
         )
         fastest_path_button.grid(column=0, row=1, sticky="ew")
         reset_button = ttk.Button(action_pane, text="Reset", command=self.reset)
@@ -143,6 +143,9 @@ class Simulator:
 
     def findFP(self):
         self.robot.fastestPath(map_sim)
+    
+    def findFC(self):
+        self.robot.fastestCar(map_fc)
 
     def hamiltonian_path(self):
         self.robot.hamiltonian_path_search(map_sim, self.goal_pairs)

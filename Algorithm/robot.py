@@ -157,6 +157,80 @@ class Robot:
         self.simulator.robot_movement.extend(movements[from_dir][to_dir])
         self.robot_rpi_temp_movement.extend(movements[from_dir][to_dir])
         self.bearing = Bearing.int_to_bearing(to_dir)
+    
+    def fastestCar(self, maze):
+        self.simulator.temp_pairs = []
+        start = [1, 18, 10]
+        new_goal_nodes = []
+        g = self.simulator.goal_pairs
+        g.insert(0, start)
+        encoded_pairs = {}
+        count = 0
+        k = []
+
+        for i in range(len(self.simulator.obstacles)): # it will be 2 obstacles
+            if self.simulator.obstacles[i][2] == 11: # there wil only be east and west directions on the obstacle
+                k.append(
+                    [
+                        self.simulator.obstacles[i][0] + 4,
+                        self.simulator.obstacles[i][1],
+                        13,
+                    ]
+                )
+            else:
+                k.append(
+                    [
+                        self.simulator.obstacles[i][0] - 4,
+                        self.simulator.obstacles[i][1],
+                        11,
+                    ]
+                )
+
+        for i in g:
+            encoded_pairs[count] = i
+            count += 1
+        logger.debug(f"encoded_pairs: {encoded_pairs}") # goal pairs of obstacles?
+
+        dist = []
+        for i in g:
+            temp = []
+            for j in g:
+                if i == j:
+                    temp.append(sys.maxsize)
+                else:
+                    sqr = pow(i[0] - j[0], 2) + pow(i[1] - j[1], 2)
+                    root = math.sqrt(sqr)
+                    temp.append(root)
+            dist.append(temp)
+
+    # after it sees the obstacle it just swerves in the appropriate direction by a certain padding and then takes a U-turn back
+
+        n = len(g)
+        fastest_path = FastestPath()
+        path = fastest_path.plan_path(dist, n) # no need
+        logger.debug(path)
+        for i in path:
+            if i != 0:
+                new_goal_nodes.append(encoded_pairs[i])
+                t = encoded_pairs[i]
+                for j in range(len(k)):
+                    if k[j][0] == t[0] and k[j][1] == t[1]:
+                        break
+                    
+    # update the goal node to be at the start
+        for x in new_goal_nodes:
+            if x[2] == 10:
+                tempGoal = [x[0], x[1] - 3]
+            elif x[2] == 11:
+                tempGoal = [x[0] + 3, x[1]]
+            elif x[2] == 12:
+                tempGoal = [x[0], x[1] + 3]
+            else:
+                tempGoal = [x[0] - 3, x[1]]
+            self.simulator.temp_pairs.append(tempGoal)
+
+
+
 
     def fastestPath(self, maze):
         self.simulator.temp_pairs = []
@@ -216,6 +290,7 @@ class Robot:
                     root = math.sqrt(sqr)
                     temp.append(root)
             dist.append(temp)
+            
         n = len(g)
         fastest_path = FastestPath()
         path = fastest_path.plan_path(dist, n)
