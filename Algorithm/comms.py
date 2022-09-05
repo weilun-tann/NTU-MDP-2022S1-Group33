@@ -11,7 +11,9 @@ class Communication:
     """
 
     def __init__(self):
-        self.ipv4: str = socket.gethostbyname(socket.gethostname()) # TODO - switch to "192.168.33.1" when before deployed to RPi  # server's ipv4 address
+        self.ipv4: str = socket.gethostbyname(
+            socket.gethostname()
+        )  # TODO - switch to "192.168.33.1" when before deployed to RPi  # server's ipv4 address
         self.port: int = 5000  # server's port
         self.client_socket: socket.socket = (
             socket.socket()
