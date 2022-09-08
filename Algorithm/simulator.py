@@ -76,30 +76,37 @@ class Simulator:
             width=30,
         )
         hamiltonian_path_button.grid(column=0, row=0, sticky="ew")
+
         fastest_path_button = ttk.Button(
-            action_pane, text="Fastest Path", command=self.findFC
+            action_pane, text="Fastest Path", command=self.findFP
         )
         fastest_path_button.grid(column=0, row=1, sticky="ew")
+
+        fastest_car_button = ttk.Button(
+            action_pane, text="Fastest Car", command=self.findFC
+        )
+        fastest_car_button.grid(column=0, row=2, sticky="ew")
+        
         reset_button = ttk.Button(action_pane, text="Reset", command=self.reset)
-        reset_button.grid(column=0, row=2, sticky="ew")
+        reset_button.grid(column=0, row=3, sticky="ew")
         create_map_button = ttk.Button(
             action_pane, text="Create Map", command=self.android_map_formation
         )
-        create_map_button.grid(column=0, row=3, sticky="ew")
+        create_map_button.grid(column=0, row=4, sticky="ew")
         connect_button = ttk.Button(
             action_pane,
             text="Connect to RPI",
             command=self.communicate.connect,
             width=30,
         )
-        connect_button.grid(column=0, row=4, sticky="ew")
+        connect_button.grid(column=0, row=5, sticky="ew")
         disconnect_button = ttk.Button(
             action_pane,
             text="Disconnect to RPI",
             command=self.communicate.disconnect,
             width=30,
         )
-        disconnect_button.grid(column=0, row=5, sticky="ew")
+        disconnect_button.grid(column=0, row=6, sticky="ew")
         self.control_panel.columnconfigure(0, weight=1)
         self.control_panel.rowconfigure(0, weight=1)
         self.update_map(full=True)
@@ -145,7 +152,7 @@ class Simulator:
         self.robot.fastestPath(map_sim)
     
     def findFC(self):
-        self.robot.fastestCar(map_fc)
+        self.robot.fastestCar(map_sim)
 
     def hamiltonian_path(self):
         self.robot.hamiltonian_path_search(map_sim, self.goal_pairs)
