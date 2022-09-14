@@ -50,7 +50,7 @@ def test_connect(server: socket.socket, client: Communication):
     try:
         server_ipv4, server_port = server.getsockname()
 
-        # start mock TCP socket server listening on port 5005 - this will block
+        # start mock TCP socket server listening on port 5000 - this will block
         with concurrent.futures.ThreadPoolExecutor() as executor:
             server_socket_future = executor.submit(
                 start_server, server, server_ipv4, server_port
@@ -66,8 +66,8 @@ def test_connect(server: socket.socket, client: Communication):
             )
 
             # client and server should be using the same TCP connection (i.e. IP and port of opposite end should match)
-            assert client.client_socket.getsockname() == server_socket.getpeername()
-            assert client.client_socket.getpeername() == server_socket.getsockname()
+            assert client.socket.getsockname() == server_socket.getpeername()
+            assert client.socket.getpeername() == server_socket.getsockname()
 
             # save the actual server socket (after calling .listen() on original socket)
             pytest.server_conn = server_socket

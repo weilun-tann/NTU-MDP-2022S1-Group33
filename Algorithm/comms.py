@@ -11,11 +11,13 @@ class Communication:
     """
 
     def __init__(self):
-        self.ipv4: str = socket.gethostbyname(
-            socket.gethostname()
-        )  # TODO - switch to "192.168.33.1" when before deployed to RPi  # server's ipv4 address
-        self.port: int = 5000  # server's port
-        self.client_socket: socket.socket = (
+        self.ipv4: str = "192.168.33.1" # socket.gethostbyname(
+            # socket.gethostname()
+        #)  # server's ipv4 address # TODO "192.168.33.1"
+        self.port: int = (
+            5000  # port the server is listening on for new websocket connections
+        )
+        self.socket: socket.socket = (
             socket.socket()
         )  # the socket object used for 2-way TCP communication with the RPi
         self.msg: str = "nothing"  # message received from the Rpi
@@ -27,22 +29,24 @@ class Communication:
         Initiates a TCP socket connection to the server at (self.ipv4, self.port)
         """
         logger.debug(f"Connecting to the server at {self.ipv4}:{self.port}...")
-        self.client_socket.connect((self.ipv4, self.port))
+        self.socket.connect((self.ipv4, self.port))
         logger.debug(f"Successfully connected to the server at {self.ipv4}:{self.port}")
+        logger.debug(
+            f"Algo - Press 'Create Map' now. Ask RPi server to send over command list"
+        )
+        
 
     def disconnect(self):
-        if not (self.client_socket and not self.client_socket._closed):
+        if not (self.socket and not self.socket._closed):
             logger.warning(
                 "There is no active connection with a server currently. Unable to disconnect."
             )
             return
 
         logger.debug(f"Disconnecting from the server at {self.ipv4}:{self.port}...")
-        self.client_socket.shutdown(socket.SHUT_RDWR)
-        self.client_socket.close()
-        logger.debug(
-            f"Successfully disconnected from the server at {self.ipv4}:{self.port}"
-        )
+        self.socket.shutdown(socket.SHUT_RDWR)
+        self.socket.close()
+        logger.debug(f"Algo client socket has been closed")
 
     def convert_movement_to_newline_ending_string(self, movements: List[str]) -> str:
         """Converts a list of "w", "a", "s", "d" movements into a comma-separated string
@@ -61,11 +65,11 @@ class Communication:
         Args:
             message (str): the unencoded raw string to send to the RPi
         """
-        server_ipv4, server_port = self.client_socket.getpeername()
+        server_ipv4, server_port = self.socket.getpeername()
         logger.debug(
             f"Client is sending '{message}' to server at {server_ipv4}: '{server_port}'"
         )
-        self.client_socket.send(message.encode(self.msg_format))
+        self.socket.send(message.encode(self.msg_format))
 
     def get_obstacles(self) -> List[Tuple[int, int, str]]:
         # TODO - convert all (x, y, direction) into namedtuple or dataclass
@@ -83,7 +87,7 @@ class Communication:
 
         while True:
             logger.debug("[BLOCKING] Client listening for data from server...")
-            data = self.client_socket.recv(self.read_limit_bytes).strip()
+            data = self.socket.recv(self.read_limit_bytes).strip()
 
             if len(data) > 0:
                 data = data.decode(self.msg_format)
@@ -122,7 +126,7 @@ class Communication:
         """
         logger.debug("[BLOCKING] Client listening for data from server...")
 
-        self.msg = self.client_socket.recv(self.read_limit_bytes).strip()
+        self.msg = self.socket.recv(self.read_limit_bytes).strip()
 
         if len(self.msg) > 0 and self.msg != "nothing":
             self.msg = self.msg.decode("utf-8")
