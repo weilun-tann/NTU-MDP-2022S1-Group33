@@ -9,7 +9,6 @@ class FastestPath:
 
     def tsp(self, dist, vis, cur, cnt, n, cost, ans):
         if cnt == n:
-            print(ans)
             if cost < self.min_cost:
                 self.min_cost = cost
                 self.path = ans

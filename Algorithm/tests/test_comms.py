@@ -4,6 +4,7 @@ import time
 
 import pytest
 from comms import Communication
+from constants import Direction, Obstacle
 from setup_logger import logger
 
 
@@ -79,7 +80,7 @@ def test_connect(server: socket.socket, client: Communication):
         server.close()
 
 
-@pytest.mark.dependeny(depends=["test_connect"])
+@pytest.mark.dependency(depends=["test_connect"])
 def test_get_obstacles(client: Communication, obstacles: str):
     try:
         server = pytest.server_conn
@@ -90,20 +91,32 @@ def test_get_obstacles(client: Communication, obstacles: str):
         server.send(obstacles.encode(client.msg_format))
         time.sleep(1)
         actual_obstacles = client.get_obstacles()
-        expected_x, expected_y, expected_direction = obstacles.split(",")
-        assert actual_obstacles == [
-            (
+        expected_index, expected_x, expected_y, expected_direction = obstacles.split(
+            ","
+        )
+        expected_obstacles = [
+            Obstacle(
+                int(expected_index),
                 int(expected_x),
                 int(expected_y),
                 10
-                if expected_direction == "North"
+                if expected_direction == Direction.NORTH.value
                 else 11
-                if expected_direction == "East"
+                if expected_direction == Direction.EAST.value
                 else 12
-                if expected_direction == "South"
-                else 13,
+                if expected_direction == Direction.SOUTH.value
+                else 13
+                if expected_direction == Direction.WEST.value
+                else None,
             )
         ]
+        assert len(actual_obstacles) == len(expected_obstacles)
+        assert all(
+            [
+                actual == expected
+                for actual, expected in zip(actual_obstacles, expected_obstacles)
+            ]
+        )
     except Exception as e:
         pytest.fail(e)
         client.disconnect()

@@ -1,4 +1,6 @@
 import numpy as np
+
+from constants import State
 from setup_logger import logger
 
 
@@ -55,7 +57,7 @@ def search(maze, cost, start, end):
     :param end:
     :return:
     """
-    logger.debug(f"Searching for a path from {start} to {end}")
+    logger.debug(f"Searching for a path from (y, x, direction) = {start} to {end}")
 
     # Create start and end node with initized values for g, h and f
     start_node = Node(None, tuple(start))
@@ -121,7 +123,7 @@ def search(maze, cost, start, end):
         # if we hit this point return the path such as it may be no solution or
         # computation cost is too high
         if outer_iterations > max_iterations:
-            print("giving up on pathfinding too many iterations")
+            logger.error("giving up on pathfinding too many iterations")
             return return_path(current_node, maze)
 
         # Pop current node out off yet_to_visit list, add to visited list

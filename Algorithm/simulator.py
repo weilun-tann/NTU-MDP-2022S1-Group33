@@ -39,13 +39,13 @@ class Simulator:
             self.robot_s.append([])
             self.robot_w.append([])
             for j in range(3):
-                self.robot_n[i].append(config.robot_grid["north"][i][j])
-                self.robot_e[i].append(config.robot_grid["east"][i][j])
-                self.robot_s[i].append(config.robot_grid["south"][i][j])
-                self.robot_w[i].append(config.robot_grid["west"][i][j])
+                self.robot_n[i].append(config.robot_grid[Direction.NORTH][i][j])
+                self.robot_e[i].append(config.robot_grid[Direction.EAST][i][j])
+                self.robot_s[i].append(config.robot_grid[Direction.SOUTH][i][j])
+                self.robot_w[i].append(config.robot_grid[Direction.WEST][i][j])
         t = Toplevel(self.root)
         t.title("Control Panel")
-        t.geometry("+610+0")
+        t.geometry("+3000+0")
         t.resizable(False, False)
 
         self.canvas = Canvas(
@@ -107,10 +107,25 @@ class Simulator:
 
     def android_map_formation(self):
         self.obstacles = self.communicate.get_obstacles()
-        logger.debug(f"self.obstacles: {self.obstacles}")
         self.map.create_map(self.obstacles)
         self.reset()
         self.robot.fastestPath(map_sim)
+
+        movement_command = {
+            Movement.FORWARD: self.robot.move,
+            Movement.REVERSE: self.robot.reverse,
+            Movement.LEFT: self.robot.left,
+            Movement.RIGHT: self.robot.right,
+        }
+        bearing_direction = {
+            Bearing.NORTH: Direction.NORTH,
+            Bearing.EAST: Direction.EAST,
+            Bearing.SOUTH: Direction.SOUTH,
+            Bearing.WEST: Direction.WEST,
+        }
+
+        # Reset the robot position first
+        self.robot.reset()
 
         # Send the movements back to the client
         for i, movement_to_obstacle in enumerate(self.movement_to_rpi):
@@ -119,27 +134,54 @@ class Simulator:
             )
 
             for movement in movement_to_obstacle:
-                self.communicate.communicate(movement)
 
+                # keep sending the same movement until STM acknowledges
                 while True:
-                    logger.debug(
-                        "[BLOCKING] Server waiting for movement confirmation from client..."
-                    )
 
-                    if self.communicate.msg == "Movement Done":
+                    # this is blocking - will wait until STM returns a non-empty message - it may or may not be an ACK
+                    self.communicate.communicate(movement.value)
+
+                    # stop sending the same movement if STM acknowledges
+                    if self.communicate.msg == Message.ACK.value:
                         logger.debug(
-                            f"Server received movement confirmation from client for (obstacle {i}, movement {movement}"
+                            f"Client received movement confirmation for movement='{movement}'"
                         )
                         self.communicate.msg = ""
                         break
                     else:
                         logger.debug(
-                            "No confirmation received. Sleeping for 1 second..."
+                            "Client did NOT receive movement confirmation for movement='{movement}'. Sleeping for 1 second before resending the movement..."
                         )
                         time.sleep(1)
 
-        # All movements have been sent and confirmed by RPi. Safe to disconnect
-        self.communicate.disconnect()
+                # After STM acknowledges, update Android about the robot's live position
+                if movement != Movement.STOP:
+                    movement_command[movement]()
+
+                    # TODO - note that we will NOT require Android to acknowledge - if message lost, so be it --> live updates will be gone
+                    live_location_message = f"ROBOT,{self.robot.x},{self.robot.y},{bearing_direction[self.robot.bearing]}"
+                    self.communicate.communicate(live_location_message, listen=False)
+
+                # This is to update Android that we took a picture for the obstacle
+                else:
+                    goal = self.robot.encoded_pairs[i + 1]
+                    obstacle = self.robot.goal_obstacle[tuple(goal)]
+                    obstacle_id = self.get_obstacle_id(
+                        obstacle.x, obstacle.y, obstacle.direction
+                    )
+
+                    logger.debug(
+                        f"Robot is now at {goal}, ready to take picture of obstacle at {obstacle} with obstacle id = {obstacle_id}"
+                    )
+                    self.communicate.communicate(f"IMG{obstacle_id}")
+
+        # Reset the robot so it moves corrctly in the ALgo UI
+        # Check the obstacle list before displaying movement
+        self.robot.reset()
+
+        # Somehow the FIRST movement of the robot gets "eaten up"
+        # Compensate for it
+        movement_command[self.movement_to_rpi[0][0]]()
 
     def findFP(self):
         self.robot.fastestPath(map_sim)
@@ -262,13 +304,13 @@ class Simulator:
     def update_goal_pairs(self):
         for i in self.temp_pairs:
             if map_sim[i[1]][i[0]] == 10:
-                self.goal_pairs.append([i[0], i[1] - 4, 12])
+                self.goal_pairs.append([i[0], i[1] - 3, 12])
             elif map_sim[i[1]][i[0]] == 11:
-                self.goal_pairs.append([i[0] + 4, i[1], 13])
+                self.goal_pairs.append([i[0] + 3, i[1], 13])
             elif map_sim[i[1]][i[0]] == 12:
-                self.goal_pairs.append([i[0], i[1] + 4, 10])
+                self.goal_pairs.append([i[0], i[1] + 3, 10])
             else:
-                self.goal_pairs.append([i[0] - 4, i[1], 11])
+                self.goal_pairs.append([i[0] - 3, i[1], 11])
 
     def on_click(self, event):
         x = event.x // 40
@@ -332,3 +374,22 @@ class Simulator:
         self.robot.reset()
         self.map.reset()
         self.update_map(full=True)
+
+    def get_obstacle_id(self, x: int, y: int, direction: int) -> int:
+        """Returns the obstacle ID of the obstacle at the given coordinate and bearing
+
+        Args:
+            x (int): The x coordinate of the obstacle
+            y (int): The y coordinate of the obstacle
+            direction (int): The direction of the obstacle
+
+        Returns:
+            int: The obstacle ID of the obstacle
+        """
+        for obstacle in self.obstacles:
+            if obstacle.x == x and obstacle.y == y and obstacle.direction == direction:
+                return obstacle.id
+
+        raise ValueError(
+            f"No obstacle found at the given coordinate and direction of ({x}, {y}, {direction})"
+        )

@@ -40,6 +40,7 @@ def client() -> Communication:
 def obstacles() -> str:
     """
     Returns:
-        str: The list of obstacles formatted as 'x1,y1,Direction1,x2,y2,Direction2,...', where 0 <= x, y <= 19 and Direction in {"North", "South", "East", "West"}
+        str: The list of obstacles formatted as 'index1,x1,y1,Direction1,index2,x2,y2,Direction2,...', where 0 <= x, y <= 19 and Direction in {"N", "S", "E", "W"}
     """
-    return "7,18,West"
+    return "0,7,18,W"
+    return "0,1,1,S,1,6,7,N,2,10,12,E,3,15,3,W,4,19,10,W,5,13,17,E"  # sample arena

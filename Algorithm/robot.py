@@ -20,6 +20,9 @@ class Robot:
         self.update_map: bool = True
         self.robot_rpi_temp_movement: List[str] = []
         self.prev_loc = (1, 18, Bearing.NORTH)  # (x, y, Bearing)
+        self.goal_obstacle = (
+            dict()
+        )  # {(Target state x, y, direction) : (Obstacle x, y, direction)}
 
     def validate(self, x, y):
         if (
@@ -34,6 +37,10 @@ class Robot:
 
     # recalculate center of robot
     def move(self):
+        print(
+            f"Robot moving forward... | Before = {(self.x, self.y, self.bearing)} | ",
+            end="",
+        )
         if self.bearing == Bearing.NORTH and self.check_front():
             self.y -= 1
         elif self.bearing == Bearing.EAST and self.check_front():
@@ -42,6 +49,7 @@ class Robot:
             self.y += 1
         elif self.bearing == Bearing.WEST and self.check_front():
             self.x -= 1
+        print(f"After = {(self.x, self.y, self.bearing)}")
 
     def reverse(self):
         if self.bearing == Bearing.NORTH:
@@ -55,11 +63,21 @@ class Robot:
 
     def left(self):
         # rotate anticlockwise by 90 deg
+        print(
+            f"Robot turning LEFT... | Before = {(self.x, self.y, self.bearing)} | ",
+            end="",
+        )
         self.bearing = Bearing.prev_bearing(self.bearing)
+        print(f"After = {(self.x, self.y, self.bearing)}")
 
     def right(self):
         # rotate clockwise by 90 deg
+        print(
+            f"Robot turning RIGHT... | Before = {(self.x, self.y, self.bearing)} | ",
+            end="",
+        )
         self.bearing = Bearing.next_bearing(self.bearing)
+        print(f"After = {(self.x, self.y, self.bearing)}")
 
     def get_right_bearing(self):
         return Bearing.next_bearing(self.bearing)
@@ -161,49 +179,52 @@ class Robot:
     def fastestPath(self, maze):
         self.simulator.temp_pairs = []
         start = [1, 18, 10]
-        new_goal_nodes = []
+        target_states = []
         g = self.simulator.goal_pairs
         g.insert(0, start)
         encoded_pairs = {}
         count = 0
         k = []
-        for i in range(len(self.simulator.obstacles)):
-            if self.simulator.obstacles[i][2] == 10:
+        for obstacle in self.simulator.obstacles:
+            if obstacle.direction == 10:
                 k.append(
                     [
-                        self.simulator.obstacles[i][0],
-                        self.simulator.obstacles[i][1] - 4,
+                        obstacle.x,
+                        obstacle.y - 3,
                         12,
                     ]
                 )
-            elif self.simulator.obstacles[i][2] == 11:
+            elif obstacle.direction == 11:
                 k.append(
                     [
-                        self.simulator.obstacles[i][0] + 4,
-                        self.simulator.obstacles[i][1],
+                        obstacle.x + 3,
+                        obstacle.y,
                         13,
                     ]
                 )
-            elif self.simulator.obstacles[i][2] == 12:
+            elif obstacle.direction == 12:
                 k.append(
                     [
-                        self.simulator.obstacles[i][0],
-                        self.simulator.obstacles[i][1] + 4,
+                        obstacle.x,
+                        obstacle.y + 3,
                         10,
                     ]
                 )
             else:
                 k.append(
                     [
-                        self.simulator.obstacles[i][0] - 4,
-                        self.simulator.obstacles[i][1],
+                        obstacle.x - 3,
+                        obstacle.y,
                         11,
                     ]
                 )
+            self.goal_obstacle[tuple(k[-1])] = obstacle
 
         for i in g:
             encoded_pairs[count] = i
             count += 1
+
+        self.encoded_pairs = encoded_pairs
         logger.debug(f"encoded_pairs: {encoded_pairs}")
         dist = []
         for i in g:
@@ -222,12 +243,12 @@ class Robot:
         logger.debug(path)
         for i in path:
             if i != 0:
-                new_goal_nodes.append(encoded_pairs[i])
+                target_states.append(encoded_pairs[i])
                 t = encoded_pairs[i]
                 for j in range(len(k)):
                     if k[j][0] == t[0] and k[j][1] == t[1]:
                         break
-        for x in new_goal_nodes:
+        for x in target_states:
             if x[2] == 10:
                 tempGoal = [x[0], x[1] - 3]
             elif x[2] == 11:
@@ -238,9 +259,9 @@ class Robot:
                 tempGoal = [x[0] - 3, x[1]]
             self.simulator.temp_pairs.append(tempGoal)
 
-        self.hamiltonian_path_search(maze, new_goal_nodes)
+        self.hamiltonian_path_search(maze, target_states)
 
-    def hamiltonian_path_search(self, maze, target_obstacles):
+    def hamiltonian_path_search(self, maze, target_states):
         """_summary_
 
         Args:
@@ -249,12 +270,12 @@ class Robot:
         """
         start = [18, 1, 10]
         end = [
-            target_obstacles[0][1],
-            target_obstacles[0][0],
-            target_obstacles[0][2],
+            target_states[0][1],
+            target_states[0][0],
+            target_states[0][2],
         ]  # ending position
         cost = 10  # cost per movement
-        for i in range(len(target_obstacles)):
+        for i in range(len(target_states)):
             self.simulator.robot_temp_movement = []
             self.robot_rpi_temp_movement = []
             path = search(maze, cost, start, end)
@@ -307,25 +328,26 @@ class Robot:
                             tempStart = move[k]
                             self.simulator.robot_temp_movement.remove(tempStart)
                             break
+
             self.get_target_movement(
-                self.bearing, Bearing.conversion_robot(target_obstacles[i][2])
+                self.bearing, Bearing.conversion_robot(target_states[i][2])
             )
-            self.simulator.robot_movement.append("x")
-            self.robot_rpi_temp_movement.append("x")
+            self.simulator.robot_movement.append(Movement.STOP)
+            self.robot_rpi_temp_movement.append(Movement.STOP)
             logger.debug(
-                f"Path to scan obstacle {i} at {target_obstacles[i]}: {self.robot_rpi_temp_movement}",
+                f"Moving towards {target_states[i]} to scan obstacle {i}: {self.robot_rpi_temp_movement}",
             )
             self.simulator.movement_to_rpi.append(self.robot_rpi_temp_movement)
             start = end
-            if i + 1 < len(target_obstacles):
+            if i + 1 < len(target_states):
                 end = [
-                    target_obstacles[i + 1][1],
-                    target_obstacles[i + 1][0],
-                    target_obstacles[i + 1][2],
+                    target_states[i + 1][1],
+                    target_states[i + 1][0],
+                    target_states[i + 1][2],
                 ]
 
         self.bearing = Bearing.NORTH  # Reset bearing to North
-        self.displayMovement()
+        self.displayMovement()  # TODO - this is removing my first element in self.simulator.robot_movement()
 
     def displayMovement(self):
         if not self.simulator.robot_movement:
@@ -339,10 +361,10 @@ class Robot:
             self.right()
         elif movement == Movement.REVERSE:
             self.reverse()
-        elif movement == "x":
+        elif movement == Movement.STOP:
             goal = self.simulator.temp_pairs.pop(0)
             map_sim[goal[1]][goal[0]] = 1
-            time.sleep(1)
+            time.sleep(0.5)
         self.simulator.update_map(full=True)
         # Refresh every 0.5 sec
-        self.simulator.job = self.simulator.root.after(100, self.displayMovement)
+        self.simulator.job = self.simulator.root.after(50, self.displayMovement)
