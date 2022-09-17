@@ -1,79 +1,124 @@
-import threading
+import concurrent.futures
+import socket
 import time
-from socket import socket
 
 import pytest
 from comms import Communication
+from constants import Direction, Obstacle
 from setup_logger import logger
 
 
-def initiate_connection(client: socket, server_ipv4: str, server_port: int):
-    logger.debug(f"Client trying to connect to server at {server_ipv4}:{server_port}")
-    client.connect((server_ipv4, server_port))
+def start_client(
+    client: Communication, server_ipv4: str, server_port: int
+) -> Communication:
+    logger.debug(f"Client connecting to server at {server_ipv4}:{server_port}...")
+    client.connect()
     time.sleep(2)  # let the client successfully connect first
     logger.debug(f"Client successfully connected")
+    return client
 
 
-def send_message(client: socket, message: str, encoding: str):
-    logger.debug(f"Client trying to send server message: '{message}'")
-    client.send(message.encode(encoding))
+def start_server(
+    server: socket.socket, server_ipv4: str, server_port: int
+) -> socket.socket:
+    logger.debug(
+        f"[BLOCKING] Server listening at {server_ipv4}:{server_port} for a client to connect..."
+    )
+    server.listen(0)
+    client_conn, _ = server.accept()
+    client_ipv4, client_port = client_conn.getpeername()
+    logger.debug(f"Connection with client at {client_ipv4}:{client_port} established")
+    return client_conn
 
 
-# this needs to be the first test to execute, as it will setup a 2-way TCP connection between client and server
-@pytest.mark.order(1)
-def test_connect(server: Communication, client: socket):
-    """Test the setting up of a 2-way TCP socket connection between client and server
+def stop_server(server: socket.socket):
+    server_ipv4, server_port = server.getsockname()
+    logger.debug(f"Server at {server_ipv4}:{server_port} is shutting down")
+    server.shutdown(socket.SHUT_RDWR)
+    server.close()
+
+
+def test_connect(server: socket.socket, client: Communication):
+    """
+    1. Start the mock Rpi server listening at at its assigned host and port
+    2. Start the actual Algo client and connect it to the mock Rpi server
+    3. Assert that the connection established and maintained by both client and server are correct
 
     Args:
-        server (Communication): _description_
-        client (socket): _description_
+        server (socket.socket): The mock Rpi server
+        client (Communication): The actual Algo client
     """
     try:
-        # start server listening on port 5005 - this will block
-        server_thread = threading.Thread(target=server.connect)
-        # connect the client to the server
-        client_thread = threading.Thread(
-            target=initiate_connection,
-            args=(client, server.ipv4, server.port),
-        )
-        server_thread.start()
-        # let the server create the socket and start listening first --> can use a condition variable on server.is_listening (bool) to make this more robust
-        time.sleep(2)
-        client_thread.start()
+        server_ipv4, server_port = server.getsockname()
 
-        # let the client successfully connect first
-        time.sleep(2)
+        # start mock TCP socket server listening on port 5000 - this will block
+        with concurrent.futures.ThreadPoolExecutor() as executor:
+            server_socket_future = executor.submit(
+                start_server, server, server_ipv4, server_port
+            )
+            time.sleep(2)  # let the server start listening first
+            client_future = executor.submit(
+                start_client, client, server_ipv4, server_port
+            )
+            time.sleep(2)  # let the client successfully connect first
+            server_socket, client = (
+                server_socket_future.result(),
+                client_future.result(),
+            )
 
-        # client and server should be using the same TCP connection (i.e. IP and port of opposite end should match)
-        assert client.getsockname() == server.connection.getpeername()
-        assert client.getpeername() == server.connection.getsockname()
+            # client and server should be using the same TCP connection (i.e. IP and port of opposite end should match)
+            assert client.socket.getsockname() == server_socket.getpeername()
+            assert client.socket.getpeername() == server_socket.getsockname()
+
+            # save the actual server socket (after calling .listen() on original socket)
+            pytest.server_conn = server_socket
+
     except Exception as e:
         pytest.fail(e)
-        client.close()
-        server.disconnect()
+        client.disconnect()
+        server.shutdown(socket.SHUT_RDWR)
+        server.close()
 
 
-@pytest.mark.order(2)
-def test_get_obstacles(server: Communication, client: socket, obstacles: str):
+@pytest.mark.dependency(depends=["test_connect"])
+def test_get_obstacles(client: Communication, obstacles: str):
+    try:
+        server = pytest.server_conn
+        logger.debug(f"Server sending client message: '{obstacles}'...")
 
-    # note that send() is a non-blocking operation - it fills up the local OS network buffer and returns immediately
-    # the actual sending of the buffered data over the TCP connection may NOT be finished by the time the send() method returns due to TCP flow control
-    send_message(client, obstacles, server.message_format)
-    time.sleep(
-        1
-    )  # let the server receive the message first, since send is non-blocking
-    actual_obstacles = server.get_obstacles()
-    expected_x, expected_y, expected_direction = obstacles.split(",")
-    assert actual_obstacles == [
-        (
-            int(expected_x),
-            int(expected_y),
-            10
-            if expected_direction == "North"
-            else 11
-            if expected_direction == "East"
-            else 12
-            if expected_direction == "South"
-            else 13,
+        # let the server receive the message first, since send is non-blocking
+        # the actual sending of the buffered data over the TCP connection may NOT be finished by the time the send() method returns due to TCP flow control
+        server.send(obstacles.encode(client.msg_format))
+        time.sleep(1)
+        actual_obstacles = client.get_obstacles()
+        expected_index, expected_x, expected_y, expected_direction = obstacles.split(
+            ","
         )
-    ]
+        expected_obstacles = [
+            Obstacle(
+                int(expected_index),
+                int(expected_x),
+                int(expected_y),
+                10
+                if expected_direction == Direction.NORTH.value
+                else 11
+                if expected_direction == Direction.EAST.value
+                else 12
+                if expected_direction == Direction.SOUTH.value
+                else 13
+                if expected_direction == Direction.WEST.value
+                else None,
+            )
+        ]
+        assert len(actual_obstacles) == len(expected_obstacles)
+        assert all(
+            [
+                actual == expected
+                for actual, expected in zip(actual_obstacles, expected_obstacles)
+            ]
+        )
+    except Exception as e:
+        pytest.fail(e)
+        client.disconnect()
+        server.shutdown(socket.SHUT_RDWR)
+        server.close()

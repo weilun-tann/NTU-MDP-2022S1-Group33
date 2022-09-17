@@ -3,6 +3,7 @@ from typing import List
 import numpy as np
 
 import config
+from constants import Obstacle
 
 # Grid is 0-indexed
 # (x, y) = (0, 0) corresponds to the top left cell
@@ -13,7 +14,7 @@ import config
 # 0 - empty spaces
 # 1 - occupied spaces - each obstacle occupies only a 10cm x 10cm space (~half a grid cell),
 # the extra radius is probably to prevent robot from going too close
-# 10 (North), 11 (East), 12 (South), 13 (West) - represents the direction the obstacle is facing
+# 10 (N), 11 (E), 12 (S), 13 (W) - represents the direction the obstacle is facing
 map_sim: List[List[int]] = [
     [1, 1, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
     [1, 12, 1, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0, 0],
@@ -94,32 +95,31 @@ class Map:
             for y in range(config.map_size["height"]):
                 map_sim[y][x] = map_virtual[y][x]
 
-    def create_map(self, obstacles):
+    def create_map(self, obstacles: List[Obstacle]):
         for x in range(config.map_size["width"]):
             for y in range(config.map_size["height"]):
                 map_sim[y][x] = map_virtual_w[y][x]
 
-        for i in range(len(obstacles)):
+        for obstacle in obstacles:
             for row in range(config.map_size["width"]):
                 for column in range(config.map_size["height"]):
-                    if row == obstacles[i][0] and column == obstacles[i][1]:
-                        map_sim[column][row] = obstacles[i][2]
+                    if row == obstacle.x and column == obstacle.y:
+                        map_sim[column][row] = obstacle.direction
                         for j in range(3):
                             for k in range(3):
                                 if not (
-                                    obstacles[i][0] - 1 + k < 0
-                                    or obstacles[i][0] + k > config.map_size["width"]
-                                    or obstacles[i][1] - 1 + j < 0
-                                    or obstacles[i][1] - 1 + j
-                                    >= config.map_size["height"]
+                                    obstacle.x - 1 + k < 0
+                                    or obstacle.x + k > config.map_size["width"]
+                                    or obstacle.y - 1 + j < 0
+                                    or obstacle.y - 1 + j >= config.map_size["height"]
                                 ):
                                     # Skip the obstacle itself to prevent changes
-                                    if not map_sim[obstacles[i][1] - 1 + j][
-                                        obstacles[i][0] - 1 + k
+                                    if not map_sim[obstacle.y - 1 + j][
+                                        obstacle.x - 1 + k
                                     ] in [10, 11, 12, 13]:
                                         # Update surrounding wall near the obstacle (3x3)
-                                        map_sim[obstacles[i][1] - 1 + j][
-                                            obstacles[i][0] - 1 + k
+                                        map_sim[obstacle.y - 1 + j][
+                                            obstacle.x - 1 + k
                                         ] = 1
 
         for x in range(config.map_size["width"]):

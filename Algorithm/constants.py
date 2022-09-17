@@ -1,4 +1,5 @@
-from enum import IntEnum
+from dataclasses import dataclass
+from enum import Enum, IntEnum
 
 
 class Bearing(IntEnum):
@@ -75,15 +76,16 @@ class Bearing(IntEnum):
         return Bearing(bearing)
 
 
-class Movement:
-    FORWARD = "w"
-    LEFT = "a"
-    RIGHT = "d"
-    REVERSE = "s"
+class Movement(Enum):
+    FORWARD = "w100"
+    LEFT = "a090"
+    RIGHT = "d090"
+    REVERSE = "s100"
+    STOP = "x"
 
-    FORWARD_DIAG = 3
-    LEFT_DIAG = 4
-    RIGHT_DIAG = 5
+
+class Message(Enum):
+    ACK = "$"
 
 
 class Cost(IntEnum):
@@ -93,3 +95,33 @@ class Cost(IntEnum):
     TURN_COST = 20
     TURN_COST_DIAG = 10
     WAYPONT_PENALTY = 1000
+
+
+class Direction(Enum):
+    NORTH = "N"
+    SOUTH = "S"
+    EAST = "E"
+    WEST = "W"
+
+
+@dataclass
+class Obstacle:
+    """
+    Class to represent an obstacle
+    """
+
+    id: int
+    x: int
+    y: int
+    direction: Direction
+
+
+@dataclass
+class State:
+    """
+    Class to represent the state (its coordinates and the direction it's facing) of a robot
+    """
+
+    x: int
+    y: int
+    direction: Direction
