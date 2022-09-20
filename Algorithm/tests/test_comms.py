@@ -98,7 +98,10 @@ def test_get_obstacles(client: Communication, obstacles: str):
             Obstacle(
                 int(expected_index),
                 int(expected_x),
-                int(expected_y),
+                19
+                - int(
+                    expected_y
+                ),  # convert from arena representation to algo representation
                 10
                 if expected_direction == Direction.NORTH.value
                 else 11

@@ -83,9 +83,13 @@ class Communication:
                 for i in range(0, len(obstacles), 4):
                     index, x, y, direction = obstacles[i : i + 4]
 
-                    # TODO - y = (19 - y) to convert from arena's representation
-                    # at (0, 0) bottom left to our representation of (0, 0) at top left
-                    index, x, y = int(index.strip()), int(x.strip()), int(y.strip())
+                    # (19 - y) to convert from arena's representation which treats bottom-left as (0,0)
+                    # to our representation which treats top-left as (0, 0)
+                    index, x, y = (
+                        int(index.strip()),
+                        int(x.strip()),
+                        19 - int(y.strip()),
+                    )
                     direction = direction.strip()
                     direction = (
                         10
@@ -107,7 +111,9 @@ class Communication:
 
                     new_obstacles.append(Obstacle(index, x, y, direction))
 
-                logger.debug(f"Client parsed obstacles from server: {new_obstacles}")
+                logger.debug(
+                    f"Client parsed obstacles from server: {new_obstacles}. Obstacles are as per ALGO client representation"
+                )
                 return new_obstacles
 
             logger.warn(
