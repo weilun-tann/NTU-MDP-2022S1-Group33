@@ -162,7 +162,7 @@ class Simulator:
                     # TODO - note that we will NOT require Android to acknowledge - if message lost, so be it --> live updates will be gone
                     # (19 - y) to convert from arena's representation which treats bottom-left as (0,0)
                     # to our representation which treats top-left as (0, 0)
-                    live_location = f"ROBOT,{self.robot.x},{19 - self.robot.y},{bearing_direction[self.robot.bearing]}"
+                    live_location = f"ROBOT,{self.robot.x},{19 - self.robot.y},{bearing_direction[self.robot.bearing].value}"
 
                     # Send live location to Android - requires ACK
                     while True:
