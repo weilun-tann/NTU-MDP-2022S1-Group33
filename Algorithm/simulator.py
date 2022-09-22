@@ -135,11 +135,24 @@ class Simulator:
 
             for movement in movement_to_obstacle:
 
-                # Send movement to STM - requires ACK
+                # Send movement to STM - ACK is required
                 while True:
-
-                    # this is blocking - will wait until STM returns a non-empty message - it may or may not be an ACK
-                    self.communicate.communicate(movement.value)
+                    logger.debug(
+                        f"Client sending movement command to STM: {movement.value} - ACK is required only if movement is 'w/a/s/d'"
+                    )
+                    require_ack = movement.value in {
+                            Movement.FORWARD.value,
+                            Movement.REVERSE.value,
+                            Movement.LEFT.value,
+                            Movement.RIGHT.value,
+                        }
+                    self.communicate.communicate(
+                        movement.value,
+                        listen=require_ack
+                    )
+                    
+                    if not require_ack:
+                        break
 
                     # stop sending the same movement if STM acknowledges
                     if self.communicate.msg == Message.ACK.value:
@@ -154,64 +167,36 @@ class Simulator:
                         )
                         time.sleep(1)
 
+                # Send live location to Android - no ACK needed
                 if movement != Movement.STOP:
 
                     # simulate the movement on our own Algo map
                     movement_command[movement]()
 
-                    # TODO - note that we will NOT require Android to acknowledge - if message lost, so be it --> live updates will be gone
                     # (19 - y) to convert from arena's representation which treats bottom-left as (0,0)
                     # to our representation which treats top-left as (0, 0)
                     live_location = f"ROBOT,{self.robot.x},{19 - self.robot.y},{bearing_direction[self.robot.bearing].value}"
+                    logger.debug(
+                        f"Client sending live location to Android: {live_location} - no ACK is needed"
+                    )
 
-                    # Send live location to Android - requires ACK
-                    while True:
+                    # Note that we will NOT require Android to acknowledge - if message lost, so be it --> live updates will be gone
+                    self.communicate.communicate(live_location, listen=False)
 
-                        # this is blocking - will wait until Android returns a non-empty message - it may or may not be an ACK
-                        self.communicate.communicate(live_location)
-
-                        # stop sending the live location if Android acknowledges
-                        if self.communicate.msg == Message.ACK.value:
-                            logger.debug(
-                                f"Client received live location ACK from Android for live_location='{live_location}'"
-                            )
-                            self.communicate.msg = ""
-                            break
-                        else:
-                            logger.debug(
-                                f"Client did NOT receive live location ACK from Android for live_location='{live_location}'. Sleeping for 1 second before resending the live location..."
-                            )
-                            time.sleep(1)
-
-                # Send image ID to RPi - requires ACK
+                # Send image ID to RPi - no ACK needed
                 else:
                     goal = self.robot.encoded_pairs[i + 1]
                     obstacle = self.robot.goal_obstacle[tuple(goal)]
                     obstacle_id = self.get_obstacle_id(
                         obstacle.x, obstacle.y, obstacle.direction
                     )
+                    image_id = f"IMG,{obstacle_id}"
                     logger.debug(
-                        f"Robot is now at {goal}, ready to take picture of obstacle at {obstacle} with obstacle id = {obstacle_id}"
+                        f"Client sending image ID to RPi: {image_id} - no ACK is needed"
                     )
 
-                    # Send image ID to RPi - requires ACK
-                    while True:
-
-                        # this is blocking - will wait until RPi returns a non-empty message - it may or may not be an ACK
-                        self.communicate.communicate(f"IMG,{obstacle_id}")
-
-                        # stop sending the image ID if RPi acknowledges
-                        if self.communicate.msg == Message.ACK.value:
-                            logger.debug(
-                                f"Client received image ID ACK from RPi for image_id='{obstacle_id}'"
-                            )
-                            self.communicate.msg = ""
-                            break
-                        else:
-                            logger.debug(
-                                f"Client did NOT receive image ID ACK from RPi for image_id='{obstacle_id}'. Sleeping for 1 second before resending the image ID..."
-                            )
-                            time.sleep(1)
+                    # Note that we will NOT require RPi to acknowledge - if message lost, so be it
+                    self.communicate.communicate(image_id, listen=False)
 
         # Reset the robot so it moves corrctly in the ALgo UI
         # Check the obstacle list before displaying movement

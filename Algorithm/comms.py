@@ -112,7 +112,7 @@ class Communication:
                     new_obstacles.append(Obstacle(index, x, y, direction))
 
                 logger.debug(
-                    f"Client parsed obstacles from server: {new_obstacles}. Obstacles are as per ALGO client representation"
+                    f"Client parsed obstacles from server: {new_obstacles}. Obstacle coordinates treat TOP-LEFT as (0, 0)"
                 )
                 return new_obstacles
 
