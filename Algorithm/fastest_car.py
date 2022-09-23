@@ -6,6 +6,7 @@ from map import *
 from path_find_algo import *
 from setup_logger import logger
 
+
 class FastestCar:
     def __init__(self, dist, vis, cur, cnt, n, cost, ans):
-        self.bearing : Bearing = Bearing.NORTH
+        self.bearing: Bearing = Bearing.NORTH
