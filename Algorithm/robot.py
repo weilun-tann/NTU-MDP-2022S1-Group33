@@ -260,6 +260,29 @@ class Robot:
             self.simulator.temp_pairs.append(tempGoal)
 
         self.hamiltonian_path_search(maze, target_states)
+    
+    def go_to_image(self):
+        image = 'bullseye' # get image from rpi
+        while (image == 'bullseye'):
+            self.simulator.robot_movement.append(Movement.LEFT)
+            self.robot_rpi_temp_movement.append(Movement.LEFT) 
+
+            self.simulator.robot_movement.append(Movement.FORWARD)
+            self.robot_rpi_temp_movement.append(Movement.FORWARD) 
+
+            self.simulator.robot_movement.append(Movement.RIGHT)
+            self.robot_rpi_temp_movement.append(Movement.RIGHT) 
+
+            self.simulator.robot_movement.append(Movement.FORWARD)
+            self.robot_rpi_temp_movement.append(Movement.FORWARD) 
+
+            self.simulator.robot_movement.append(Movement.RIGHT)
+            self.robot_rpi_temp_movement.append(Movement.RIGHT) 
+
+            # rescan for image
+            # check if still in bounds
+    #    else:
+
 
     def hamiltonian_path_search(self, maze, target_states):
         """_summary_
@@ -337,6 +360,9 @@ class Robot:
             logger.debug(
                 f"Moving towards {target_states[i]} to scan obstacle {i}: {self.robot_rpi_temp_movement}",
             )
+
+            go_to_image()
+
             self.simulator.movement_to_rpi.append(self.robot_rpi_temp_movement)
             start = end
             if i + 1 < len(target_states):
