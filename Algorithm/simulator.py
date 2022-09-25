@@ -45,7 +45,7 @@ class Simulator:
                 self.robot_w[i].append(config.robot_grid[Direction.WEST][i][j])
         t = Toplevel(self.root)
         t.title("Control Panel")
-        t.geometry("+3000+0")
+        t.geometry("+610+0")
         t.resizable(False, False)
 
         self.canvas = Canvas(
