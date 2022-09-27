@@ -130,7 +130,7 @@ class Simulator:
         # Send the movements back to the client
         for i, movement_to_obstacle in enumerate(self.movement_to_rpi):
             logger.debug(
-                f"Sending movement (one by one) towards obstacle {i} - {movement_to_obstacle}"
+                f"Sending movement (one by one) towards obstacle {i} - {[movement.value for movement in movement_to_obstacle]}"
             )
 
             for movement in movement_to_obstacle:
@@ -141,16 +141,13 @@ class Simulator:
                         f"Client sending movement command to STM: {movement.value} - ACK is required only if movement is 'w/a/s/d'"
                     )
                     require_ack = movement.value in {
-                            Movement.FORWARD.value,
-                            Movement.REVERSE.value,
-                            Movement.LEFT.value,
-                            Movement.RIGHT.value,
-                        }
-                    self.communicate.communicate(
-                        movement.value,
-                        listen=require_ack
-                    )
-                    
+                        Movement.FORWARD.value,
+                        Movement.REVERSE.value,
+                        Movement.LEFT.value,
+                        Movement.RIGHT.value,
+                    }
+                    self.communicate.communicate(movement.value, listen=require_ack)
+
                     if not require_ack:
                         break
 
@@ -327,13 +324,13 @@ class Simulator:
     def update_goal_pairs(self):
         for i in self.temp_pairs:
             if map_sim[i[1]][i[0]] == 10:
-                self.goal_pairs.append([i[0], i[1] - 3, 12])
+                self.goal_pairs.append([i[0], i[1] - Distance.IMAGE_CAPTURE.value, 12])
             elif map_sim[i[1]][i[0]] == 11:
-                self.goal_pairs.append([i[0] + 3, i[1], 13])
+                self.goal_pairs.append([i[0] + Distance.IMAGE_CAPTURE.value, i[1], 13])
             elif map_sim[i[1]][i[0]] == 12:
-                self.goal_pairs.append([i[0], i[1] + 3, 10])
+                self.goal_pairs.append([i[0], i[1] + Distance.IMAGE_CAPTURE.value, 10])
             else:
-                self.goal_pairs.append([i[0] - 3, i[1], 11])
+                self.goal_pairs.append([i[0] - Distance.IMAGE_CAPTURE.value, i[1], 11])
 
     def on_click(self, event):
         x = event.x // 40

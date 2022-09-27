@@ -78,8 +78,8 @@ class Bearing(IntEnum):
 
 class Movement(Enum):
     FORWARD = "w010"
-    LEFT = "a079"
-    RIGHT = "d079"
+    LEFT = "j000"
+    RIGHT = "k000"
     REVERSE = "s010"
     STOP = "x"
 
@@ -102,6 +102,11 @@ class Direction(Enum):
     SOUTH = "S"
     EAST = "E"
     WEST = "W"
+
+
+class Distance(Enum):
+    # number of cells away to do image capture (measured from centres)
+    IMAGE_CAPTURE = 4
 
 
 @dataclass

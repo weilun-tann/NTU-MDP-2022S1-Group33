@@ -15,7 +15,6 @@ class Robot:
         self.map: Map = Map()
         self.y: int = config.map_size["height"] - 2
         self.x: int = 1
-        self.consecutive_forward: int = 1
         self.bearing: Bearing = Bearing.NORTH
         self.update_map: bool = True
         self.robot_rpi_temp_movement: List[str] = []
@@ -37,10 +36,6 @@ class Robot:
 
     # recalculate center of robot
     def move(self):
-        print(
-            f"Robot moving forward... | Before = {(self.x, self.y, self.bearing)} | ",
-            end="",
-        )
         if self.bearing == Bearing.NORTH and self.check_front():
             self.y -= 1
         elif self.bearing == Bearing.EAST and self.check_front():
@@ -49,7 +44,6 @@ class Robot:
             self.y += 1
         elif self.bearing == Bearing.WEST and self.check_front():
             self.x -= 1
-        print(f"After = {(self.x, self.y, self.bearing)}")
 
     def reverse(self):
         if self.bearing == Bearing.NORTH:
@@ -63,21 +57,11 @@ class Robot:
 
     def left(self):
         # rotate anticlockwise by 90 deg
-        print(
-            f"Robot turning LEFT... | Before = {(self.x, self.y, self.bearing)} | ",
-            end="",
-        )
         self.bearing = Bearing.prev_bearing(self.bearing)
-        print(f"After = {(self.x, self.y, self.bearing)}")
 
     def right(self):
         # rotate clockwise by 90 deg
-        print(
-            f"Robot turning RIGHT... | Before = {(self.x, self.y, self.bearing)} | ",
-            end="",
-        )
         self.bearing = Bearing.next_bearing(self.bearing)
-        print(f"After = {(self.x, self.y, self.bearing)}")
 
     def get_right_bearing(self):
         return Bearing.next_bearing(self.bearing)
@@ -190,14 +174,14 @@ class Robot:
                 k.append(
                     [
                         obstacle.x,
-                        obstacle.y - 3,
+                        obstacle.y - Distance.IMAGE_CAPTURE.value,
                         12,
                     ]
                 )
             elif obstacle.direction == 11:
                 k.append(
                     [
-                        obstacle.x + 3,
+                        obstacle.x + Distance.IMAGE_CAPTURE.value,
                         obstacle.y,
                         13,
                     ]
@@ -206,14 +190,14 @@ class Robot:
                 k.append(
                     [
                         obstacle.x,
-                        obstacle.y + 3,
+                        obstacle.y + Distance.IMAGE_CAPTURE.value,
                         10,
                     ]
                 )
             else:
                 k.append(
                     [
-                        obstacle.x - 3,
+                        obstacle.x - Distance.IMAGE_CAPTURE.value,
                         obstacle.y,
                         11,
                     ]
@@ -250,13 +234,13 @@ class Robot:
                         break
         for x in target_states:
             if x[2] == 10:
-                tempGoal = [x[0], x[1] - 3]
+                tempGoal = [x[0], x[1] - Distance.IMAGE_CAPTURE.value]
             elif x[2] == 11:
-                tempGoal = [x[0] + 3, x[1]]
+                tempGoal = [x[0] + Distance.IMAGE_CAPTURE.value, x[1]]
             elif x[2] == 12:
-                tempGoal = [x[0], x[1] + 3]
+                tempGoal = [x[0], x[1] + Distance.IMAGE_CAPTURE.value]
             else:
-                tempGoal = [x[0] - 3, x[1]]
+                tempGoal = [x[0] - Distance.IMAGE_CAPTURE.value, x[1]]
             self.simulator.temp_pairs.append(tempGoal)
 
         self.hamiltonian_path_search(maze, target_states)
@@ -334,9 +318,6 @@ class Robot:
             )
             self.simulator.robot_movement.append(Movement.STOP)
             self.robot_rpi_temp_movement.append(Movement.STOP)
-            logger.debug(
-                f"Moving towards {target_states[i]} to scan obstacle {i}: {self.robot_rpi_temp_movement}",
-            )
             self.simulator.movement_to_rpi.append(self.robot_rpi_temp_movement)
             start = end
             if i + 1 < len(target_states):
