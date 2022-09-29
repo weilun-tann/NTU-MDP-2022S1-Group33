@@ -1,7 +1,9 @@
 import time
 import tkinter.ttk as ttk
+from bz2 import compress
 from tkinter import *
 from tkinter import scrolledtext
+from typing import Tuple
 
 import config
 from comms import Communication
@@ -125,12 +127,6 @@ class Simulator:
             Movement.LEFT: self.robot.left,
             Movement.RIGHT: self.robot.right,
         }
-        bearing_direction = {
-            Bearing.NORTH: Direction.NORTH,
-            Bearing.EAST: Direction.EAST,
-            Bearing.SOUTH: Direction.SOUTH,
-            Bearing.WEST: Direction.WEST,
-        }
 
         # Reset the robot position first
         self.robot.reset()
@@ -141,67 +137,32 @@ class Simulator:
                 f"Sending movement (one by one) towards obstacle {i} - {[movement.value for movement in movement_to_obstacle]}"
             )
 
-            for movement in movement_to_obstacle:
+            movement_to_obstacle = self.compress_movements(movement_to_obstacle)
 
-                # Send movement to STM - ACK is required
-                while True:
-                    logger.debug(
-                        f"Client sending movement command to STM: {movement.value} - ACK is required only if movement is 'w/a/s/d'"
-                    )
-                    require_ack = movement.value in {
-                        Movement.FORWARD.value,
-                        Movement.REVERSE.value,
-                        Movement.LEFT.value,
-                        Movement.RIGHT.value,
-                    }
-                    self.communicate.communicate(movement.value, listen=require_ack)
+            for movement, count in movement_to_obstacle:
 
-                    if not require_ack:
-                        break
+                if movement in [Movement.FORWARD, Movement.REVERSE]:
+                    _direction, _count = movement.value[0], str(count * 10).zfill(3)
+                    self.send_movement_to_stm(f"{_direction}{_count}", True)
 
-                    # stop sending the same movement if STM acknowledges
-                    if self.communicate.msg == Message.ACK.value:
-                        logger.debug(
-                            f"Client received movement ACK from STM for movement='{movement}'"
-                        )
-                        self.communicate.msg = ""
-                        break
-                    else:
-                        logger.debug(
-                            f"Client did NOT receive movement ACK from STM for movement='{movement}'. Sleeping for 1 second before resending the movement..."
-                        )
-                        time.sleep(1)
+                    for _ in range(count):
+                        movement_command[movement]()
 
-                # Send live location to Android - no ACK needed
-                if movement != Movement.STOP:
-
-                    # simulate the movement on our own Algo map
+                if movement in [
+                    Movement.LEFT,
+                    Movement.RIGHT,
+                ]:
+                    self.send_movement_to_stm(movement, True)  # ACK required
                     movement_command[movement]()
 
-                    # (19 - y) to convert from arena's representation which treats bottom-left as (0,0)
-                    # to our representation which treats top-left as (0, 0)
-                    live_location = f"ROBOT,{self.robot.x},{19 - self.robot.y},{bearing_direction[self.robot.bearing].value}"
-                    logger.debug(
-                        f"Client sending live location to Android: {live_location} - no ACK is needed"
-                    )
+                # Send STOP (x), followed by image ID (IMG,<id>)
+                if movement in [Movement.STOP]:
+                    self.send_movement_to_stm(movement, False)  # ACK NOT required
+                    self.send_image_id_to_rpi(i)  # ACK NOT required
 
-                    # Note that we will NOT require Android to acknowledge - if message lost, so be it --> live updates will be gone
-                    self.communicate.communicate(live_location, listen=False)
-
-                # Send image ID to RPi - no ACK needed
-                else:
-                    goal = self.robot.encoded_pairs[i + 1]
-                    obstacle = self.robot.goal_obstacle[tuple(goal)]
-                    obstacle_id = self.get_obstacle_id(
-                        obstacle.x, obstacle.y, obstacle.direction
-                    )
-                    image_id = f"IMG,{obstacle_id}"
-                    logger.debug(
-                        f"Client sending image ID to RPi: {image_id} - no ACK is needed"
-                    )
-
-                    # Note that we will NOT require RPi to acknowledge - if message lost, so be it
-                    self.communicate.communicate(image_id, listen=False)
+                # Update Android with robot's current coordinates ONLY if it moved
+                if movement != Movement.STOP:
+                    self.send_live_location_to_android()  # ACK NOT required
 
         # Reset the robot so it moves corrctly in the ALgo UI
         # Check the obstacle list before displaying movement
@@ -209,7 +170,94 @@ class Simulator:
 
         # Somehow the FIRST movement of the robot gets "eaten up"
         # Compensate for it
+        # TODO - will this still happen?
         movement_command[self.movement_to_rpi[0][0]]()
+
+    def compress_movements(self, movements: List[str]) -> List[Tuple[Movement, int]]:
+        """Compress the movements into a list of (Movement, count)
+
+        Input  - [Movement.FORWARD, Movement.FORWARD, Movement.LEFT]
+        Output - [(Movement.FORWARD, 2), (Movement.LEFT, 1)]
+
+        Args:
+            movements (List[str]): The movements to be sent to the STM
+
+        Returns:
+            List[Tuple[Movement, int]]: The compressed movements
+        """
+        if not movements:
+            return []
+
+        current, count = movements[0], 1
+        compressed_movements = []
+
+        for movement in movements[1:]:
+            if movement == current:
+                count += 1
+            else:
+                compressed_movements.append((current, count))
+                current, count = movement, 1
+
+        compressed_movements += [(current, count)]
+        logger.debug(f"Before compression: {movements}")
+        logger.debug(f"After compression: {compressed_movements}")
+        return compressed_movements
+
+    def send_movement_to_stm(self, movement: Movement, require_ack: bool) -> bool:
+        while True:
+            if isinstance(movement, Movement):
+                movement = movement.value
+
+            logger.debug(
+                f"[ALGO --> STM] Sending movement='{movement}' - require_ack = {require_ack}"
+            )
+            self.communicate.communicate(movement, listen=require_ack)
+
+            if not require_ack:
+                break
+
+            # stop sending the same movement if STM acknowledges
+            if self.communicate.msg == Message.ACK.value:
+                logger.debug(f"[STM --> ALGO] Received ACK for movement='{movement}'")
+                self.communicate.msg = ""
+                break
+            else:
+                logger.debug(
+                    f"[STM --> ALGO] Missing ACK for movement='{movement}'. Sleeping and retrying in 1 second..."
+                )
+                time.sleep(1)
+
+        return True
+
+    def send_live_location_to_android(self) -> bool:
+        bearing_direction = {
+            Bearing.NORTH: Direction.NORTH,
+            Bearing.EAST: Direction.EAST,
+            Bearing.SOUTH: Direction.SOUTH,
+            Bearing.WEST: Direction.WEST,
+        }
+
+        # (19 - y) to convert from arena's representation which treats bottom-left as (0,0)
+        # to our representation which treats top-left as (0, 0)
+        x, y = self.robot.x, 19 - self.robot.y
+        direction = bearing_direction[self.robot.bearing].value
+        live_location = f"ROBOT,{x},{y},{direction}"
+        logger.debug(
+            f"[ALGO --> AND] Sending live_location='{live_location}' - require_ack=False"
+        )
+        self.communicate.communicate(live_location, listen=False)
+        return True
+
+    def send_image_id_to_rpi(self, i: int) -> bool:
+        goal = self.robot.encoded_pairs[i + 1]
+        obstacle = self.robot.goal_obstacle[tuple(goal)]
+        obstacle_id = self.get_obstacle_id(obstacle.x, obstacle.y, obstacle.direction)
+        image_id = f"IMG,{obstacle_id}"
+        logger.debug(
+            f"[ALGO --> AND] Sending image_id='{image_id}' - require_ack=False"
+        )
+        self.communicate.communicate(image_id, listen=False)
+        return True
 
     def findFP(self):
         self.robot.fastestPath(map_sim)
@@ -342,6 +390,29 @@ class Simulator:
                 self.goal_pairs.append([i[0], i[1] + Distance.IMAGE_CAPTURE.value, 10])
             else:
                 self.goal_pairs.append([i[0] - Distance.IMAGE_CAPTURE.value, i[1], 11])
+
+        # TODO - let's ignore goal pairs that are OOB
+        valid_goal_pairs = []
+        valid_bearings = [10, 11, 12, 13]
+
+        for x, y, bearing in self.goal_pairs:
+            x, y, bearing = int(x), int(y), int(bearing)
+
+            if 0 <= x <= 19 and 0 <= y <= 19 and bearing in valid_bearings:
+                valid_goal_pairs.append([x, y, bearing])
+            else:
+                if not (0 <= x <= 19):
+                    logger.error(f"Goal pair {(x, y, bearing)} has invalid x={x}")
+                if not (0 <= y <= 19):
+                    logger.error(f"Goal pair {(x, y, bearing)} has invalid y={y}")
+                if bearing not in valid_bearings:
+                    logger.error(
+                        f"Goal pair {(x, y, bearing)} has invalid bearing={bearing}"
+                    )
+
+                logger.error(f"Goal pair {(x, y, bearing)} will be IGNORED\n")
+
+        self.goal_pairs = valid_goal_pairs
 
     def on_click(self, event):
         x = event.x // 40

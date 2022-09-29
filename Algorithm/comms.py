@@ -55,7 +55,7 @@ class Communication:
         """
         server_ipv4, server_port = self.socket.getpeername()
         logger.debug(
-            f"Client is sending '{message}' to server at {server_ipv4}:{server_port}"
+            f"[ALGO SEND] Client is sending '{message}' to server at {server_ipv4}:{server_port}"
         )
         self.socket.send(message.encode(self.msg_format))
 
@@ -131,17 +131,18 @@ class Communication:
 
             if msg:
                 self.msg = msg.decode(self.msg_format)
-                logger.debug(f"Client received data from server: '{self.msg}'")
+                logger.debug(
+                    f"[ALGO RCV] Client received data from server: '{self.msg}'"
+                )
                 return
 
             logger.debug(
-                f"Client is waiting for data from server but received: '{self.msg}'. Sleeping for 1 second..."
+                f"[ALGO RCV] Client is waiting for data from server but received: '{self.msg}'. Sleeping for 1 second..."
             )
             time.sleep(1)
 
     def communicate(self, data: str, listen=True, write=True):
         if write and data:
-            logger.debug(f"Client sending data to the server: '{data}'")
             self.send_message(data)
         if listen:
             self.listen_to_rpi()

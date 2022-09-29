@@ -44,5 +44,5 @@ def obstacles() -> str:
         where 0 <= x, y <= 19 and Direction in {"N", "S", "E", "W"}.
         The (x, y) should be in arena representation (treating bottom-left as (0, 0))
     """
-    return "0,3,3,S"
+    return "0,3,4,S"
     return "0,1,18,S,1,6,12,N,2,10,7,E,3,15,16,W,4,19,9,W,5,13,2,E"  # sample arena
