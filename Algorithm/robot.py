@@ -263,22 +263,32 @@ class Robot:
     
     def go_to_image(self):
         image = 'bullseye' # get image from rpi
+        wasd_str = []
+        
         while (image == 'bullseye'):
             self.simulator.robot_movement.append(Movement.LEFT)
             self.robot_rpi_temp_movement.append(Movement.LEFT) 
+            wasd_str.append('a')
 
             self.simulator.robot_movement.append(Movement.FORWARD)
             self.robot_rpi_temp_movement.append(Movement.FORWARD) 
+            wasd_str.append('w')
 
             self.simulator.robot_movement.append(Movement.RIGHT)
-            self.robot_rpi_temp_movement.append(Movement.RIGHT) 
+            self.robot_rpi_temp_movement.append(Movement.RIGHT)
+            wasd_str.append('d') 
 
             self.simulator.robot_movement.append(Movement.FORWARD)
-            self.robot_rpi_temp_movement.append(Movement.FORWARD) 
+            self.robot_rpi_temp_movement.append(Movement.FORWARD)
+            wasd_str.append('w') 
 
             self.simulator.robot_movement.append(Movement.RIGHT)
-            self.robot_rpi_temp_movement.append(Movement.RIGHT) 
+            self.robot_rpi_temp_movement.append(Movement.RIGHT)
+            wasd_str.append('d') 
 
+            wasd_str.append('x')
+
+            
             # rescan for image
             # check if still in bounds
     #    else:
@@ -361,7 +371,7 @@ class Robot:
                 f"Moving towards {target_states[i]} to scan obstacle {i}: {self.robot_rpi_temp_movement}",
             )
 
-            go_to_image()
+          #  go_to_image()
 
             self.simulator.movement_to_rpi.append(self.robot_rpi_temp_movement)
             start = end

@@ -79,31 +79,122 @@ class Simulator:
         fastest_path_button = ttk.Button(
             action_pane, text="Fastest Path", command=self.findFP
         )
-        fastest_path_button.grid(column=0, row=1, sticky="ew")
+
+        move_to_image_button = ttk.Button(
+            action_pane,
+            text="Move to image",
+            command=self.move_to_image,
+            width=30,
+        )
+        move_to_image_button.grid(column=0, row=1, sticky="ew")
+
+        fastest_path_button = ttk.Button(
+            action_pane, text="Fastest Path", command=self.findFP
+        )
+
+        fastest_path_button.grid(column=0, row=2, sticky="ew")
         reset_button = ttk.Button(action_pane, text="Reset", command=self.reset)
-        reset_button.grid(column=0, row=2, sticky="ew")
+        reset_button.grid(column=0, row=3, sticky="ew")
         create_map_button = ttk.Button(
             action_pane, text="Create Map", command=self.android_map_formation
         )
-        create_map_button.grid(column=0, row=3, sticky="ew")
+        create_map_button.grid(column=0, row=4, sticky="ew")
         connect_button = ttk.Button(
             action_pane,
             text="Connect to RPI",
             command=self.communicate.connect,
             width=30,
         )
-        connect_button.grid(column=0, row=4, sticky="ew")
+        connect_button.grid(column=0, row=5, sticky="ew")
         disconnect_button = ttk.Button(
             action_pane,
             text="Disconnect to RPI",
             command=self.communicate.disconnect,
             width=30,
         )
-        disconnect_button.grid(column=0, row=5, sticky="ew")
+        disconnect_button.grid(column=0, row=6, sticky="ew")
         self.control_panel.columnconfigure(0, weight=1)
         self.control_panel.rowconfigure(0, weight=1)
         self.update_map(full=True)
         self.root.mainloop()
+        
+    #########################################################################
+    def move_to_image(self):
+        # Reset the robot position first
+        self.robot.reset()
+
+        image = 'bullseye' # get image from rpi
+        
+        for i in range(4):
+            wasd = []
+
+            wasd.append(Movement.LEFT)
+
+            for i in range(0,3):
+                wasd.append(Movement.FORWARD)
+                i += 1
+
+            wasd.append(Movement.RIGHT)
+
+            for i in range(0,3):
+                wasd.append(Movement.FORWARD)
+
+            wasd.append(Movement.RIGHT) 
+
+            wasd.append(Movement.STOP)
+
+            self.movement_to_rpi.append(wasd)
+        
+        # Send the movements back to the client
+        for i, movement_to_obstacle in enumerate(self.movement_to_rpi):
+            logger.debug(
+                f"Sending movement (one by one) towards obstacle {i} - {movement_to_obstacle}"
+            )
+
+            for movement in movement_to_obstacle:
+
+                # Send movement to STM - ACK is required
+                while True:
+                    logger.debug(
+                        f"Client sending movement command to STM: {movement.value} - ACK is required only if movement is 'w/a/s/d'"
+                    )
+                    require_ack = movement.value in {
+                            Movement.FORWARD.value,
+                            Movement.REVERSE.value,
+                            Movement.LEFT.value,
+                            Movement.RIGHT.value,
+                        }
+                    self.communicate.communicate(
+                        movement.value,
+                        listen=require_ack
+                    )
+                    
+                    if not require_ack:
+                        break
+
+                    # stop sending the same movement if STM acknowledges
+                    if self.communicate.msg == Message.ACK.value:
+                        logger.debug(
+                            f"Client received movement ACK from STM for movement='{movement}'"
+                        )
+                        self.communicate.msg = ""
+                        break
+                    else:
+                        logger.debug(
+                            f"Client did NOT receive movement ACK from STM for movement='{movement}'. Sleeping for 1 second before resending the movement..."
+                        )
+                        time.sleep(1)
+
+                # Send live location to Android - no ACK needed
+                
+        # Reset the robot so it moves corrctly in the ALgo UI
+        # Check the obstacle list before displaying movement
+        self.robot.reset()
+
+        # Somehow the FIRST movement of the robot gets "eaten up"
+        # Compensate for it
+        movement_command[self.movement_to_rpi[0][0]]()
+    #########################################################################
 
     def android_map_formation(self):
         self.obstacles = self.communicate.get_obstacles()
