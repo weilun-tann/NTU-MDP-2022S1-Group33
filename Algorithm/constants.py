@@ -78,11 +78,11 @@ class Bearing(IntEnum):
 
 class Movement(Enum):
     FORWARD = "w010"
-    LEFT = "a079"
-    RIGHT = "d079"
+    THREE_FORWARD = "w030"
+    LEFT = "j000"
+    RIGHT = "k000"
     REVERSE = "s010"
     STOP = "x"
-
 
 class Message(Enum):
     ACK = "$"

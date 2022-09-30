@@ -12,9 +12,10 @@ class Communication:
     """
 
     def __init__(self):
-        self.ipv4: str = socket.gethostbyname(
-            socket.gethostname()
-        )  # server's ipv4 address # TODO "192.168.33.1"
+        self.ipv4 = "192.168.33.1"
+        # self.ipv4: str = socket.gethostbyname(
+        #     socket.gethostname()
+        # )  # server's ipv4 address # TODO "192.168.33.1"
         self.port: int = (
             5000  # port the server is listening on for new websocket connections
         )

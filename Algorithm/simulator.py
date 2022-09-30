@@ -120,24 +120,29 @@ class Simulator:
         
     #########################################################################
     def move_to_image(self):
+       # wasd = []
+        
         # Reset the robot position first
         self.robot.reset()
 
         image = 'bullseye' # get image from rpi
         
+        #Take first pic at the front
+        
         for i in range(4):
+            
             wasd = []
+            
+            if i == 0:
+                wasd.append(Movement.STOP)
 
             wasd.append(Movement.LEFT)
 
-            for i in range(0,3):
-                wasd.append(Movement.FORWARD)
-                i += 1
+            wasd.append(Movement.THREE_FORWARD)
 
             wasd.append(Movement.RIGHT)
-
-            for i in range(0,3):
-                wasd.append(Movement.FORWARD)
+            
+            wasd.append(Movement.THREE_FORWARD)
 
             wasd.append(Movement.RIGHT) 
 
@@ -160,6 +165,7 @@ class Simulator:
                     )
                     require_ack = movement.value in {
                             Movement.FORWARD.value,
+                            Movement.THREE_FORWARD.value,
                             Movement.REVERSE.value,
                             Movement.LEFT.value,
                             Movement.RIGHT.value,
@@ -186,6 +192,7 @@ class Simulator:
                         time.sleep(1)
 
                 # Send live location to Android - no ACK needed
+                time.sleep(5)
                 
         # Reset the robot so it moves corrctly in the ALgo UI
         # Check the obstacle list before displaying movement
