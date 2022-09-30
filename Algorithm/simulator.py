@@ -143,17 +143,17 @@ class Simulator:
 
                 if movement in [Movement.FORWARD, Movement.REVERSE]:
                     _direction, _count = movement.value[0], str(count * 10).zfill(3)
-                    self.send_movement_to_stm(f"{_direction}{_count}", True)
+                    self.send_movement_to_stm(
+                        f"{_direction}{_count}", True
+                    )  # ACK required
 
                     for _ in range(count):
                         movement_command[movement]()
 
-                if movement in [
-                    Movement.LEFT,
-                    Movement.RIGHT,
-                ]:
-                    self.send_movement_to_stm(movement, True)  # ACK required
-                    movement_command[movement]()
+                if movement in [Movement.LEFT, Movement.RIGHT]:
+                    for _ in range(count):
+                        self.send_movement_to_stm(movement, True)  # ACK required
+                        movement_command[movement]()
 
                 # Send STOP (x), followed by image ID (IMG,<id>)
                 if movement in [Movement.STOP]:
@@ -168,9 +168,7 @@ class Simulator:
         # Check the obstacle list before displaying movement
         self.robot.reset()
 
-        # Somehow the FIRST movement of the robot gets "eaten up"
-        # Compensate for it
-        # TODO - will this still happen?
+        # Somehow the FIRST movement of the robot gets "eaten up" - compensate for it
         movement_command[self.movement_to_rpi[0][0]]()
 
     def compress_movements(self, movements: List[str]) -> List[Tuple[Movement, int]]:
@@ -249,15 +247,19 @@ class Simulator:
         return True
 
     def send_image_id_to_rpi(self, i: int) -> bool:
-        goal = self.robot.encoded_pairs[i + 1]
-        obstacle = self.robot.goal_obstacle[tuple(goal)]
-        obstacle_id = self.get_obstacle_id(obstacle.x, obstacle.y, obstacle.direction)
-        image_id = f"IMG,{obstacle_id}"
-        logger.debug(
-            f"[ALGO --> AND] Sending image_id='{image_id}' - require_ack=False"
-        )
-        self.communicate.communicate(image_id, listen=False)
-        return True
+        x, y = self.temp_pairs[i]
+
+        for obstacle in self.obstacles:
+            if obstacle.x == x and obstacle.y == y:
+                image_id = f"IMG,{obstacle.id}"
+                logger.debug(
+                    f"[ALGO --> AND] Sending image_id='{image_id}' - require_ack=False"
+                )
+                self.communicate.communicate(image_id, listen=False)
+                return True
+
+        logger.error(f"No image ID was found for i={i}")
+        return False
 
     def findFP(self):
         self.robot.fastestPath(map_sim)
