@@ -104,9 +104,12 @@ class Direction(Enum):
     WEST = "W"
 
 
-class Distance(Enum):
+class Distance(IntEnum):
     # number of cells away to do image capture (measured from centres)
     IMAGE_CAPTURE = 4
+
+    # number of cells separation from edge of robot to edge of obstacle
+    MIN_SEPARATION = 2
 
 
 @dataclass

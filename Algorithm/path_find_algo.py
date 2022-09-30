@@ -1,6 +1,8 @@
+from typing import List
+
 import numpy as np
 
-from constants import State
+from constants import Distance, Obstacle
 from setup_logger import logger
 
 
@@ -48,14 +50,32 @@ def return_path(current_node, maze):
     return result
 
 
-def search(maze, cost, start, end):
+def is_adjacent_to_any_obstacle(
+    x: int, y: int, min_separation: int, obstacles: List[Obstacle]
+) -> bool:
+    """Determines if the given (x, y) coordinate is vertically or horizontally adjacent (by `distance`) to any obstacle in `obstacles`
+
+    Args:
+        x (int): The x coordinate
+        y (int): The y coordinate
+        distance(int): Any (x - obstacle.x) and (y - obstacle.y) must be >= min_separation + 1
+        obstacles (List[Obstacle]): A list of obstacles
+
+    Returns:
+        bool: True if the given (x, y) coordinate is vertically or horizontally adjacent to any obstacle in `obstacles`, False otherwise
+    """
+    return any(
+        [
+            (obstacle.x == x and abs(obstacle.y - y) < min_separation + 1)
+            or (obstacle.y == y and abs(obstacle.x - x) < min_separation + 1)
+            for obstacle in obstacles
+        ]
+    )
+
+
+def search(maze, cost, start, end, obstacles: List[Obstacle]):
     """
     Returns a list of tuples as a path from the given start to the given end in the given maze
-    :param maze:
-    :param cost
-    :param start:
-    :param end:
-    :return:
     """
     logger.debug(f"Searching for a path from (y, x, direction) = {start} to {end}")
 
@@ -78,7 +98,7 @@ def search(maze, cost, start, end):
     # Adding a stop condition. This is to avoid any infinite loop and stop
     # execution after some reasonable number of steps
     outer_iterations = 0
-    max_iterations = (len(maze) // 2) ** 10
+    max_iterations = (len(maze) // 2) ** 5
 
     # what squares do we search . serarch movement is left-right-top-bottom
     # (4 movements) from every positon
@@ -152,11 +172,19 @@ def search(maze, cost, start, end):
             ]
             i += 1
             # Make sure within range (check if within maze boundary)
+            # Make sure there is at least `Distance.MIN_SEPARATION.value`
+            # horizontal and vertical buffer between robot and any obstacle
             if (
                 node_position[0] > (no_rows - 1)
                 or node_position[0] < 0
                 or node_position[1] > (no_columns - 1)
                 or node_position[1] < 0
+                or is_adjacent_to_any_obstacle(
+                    node_position[1],
+                    node_position[0],
+                    Distance.MIN_SEPARATION.value,
+                    obstacles,
+                )
             ):
                 continue
 

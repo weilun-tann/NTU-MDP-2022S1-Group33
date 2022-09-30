@@ -57,7 +57,7 @@ class Communication:
         logger.debug(
             f"[ALGO SEND] Client is sending '{message}' to server at {server_ipv4}:{server_port}"
         )
-        self.socket.send(message.encode(self.msg_format))
+        self.socket.send(str(message).encode(self.msg_format))
 
     def get_obstacles(self) -> List[Obstacle]:
         """Returns the list of obstacles sent via Android

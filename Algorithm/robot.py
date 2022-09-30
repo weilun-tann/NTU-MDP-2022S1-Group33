@@ -23,9 +23,6 @@ class Robot:
         self.update_map: bool = True
         self.robot_rpi_temp_movement: List[str] = []
         self.prev_loc = (1, 18, Bearing.NORTH)  # (x, y, Bearing)
-        self.goal_obstacle = (
-            dict()
-        )  # {(Target state x, y, direction) : (Obstacle x, y, direction)}
 
     def validate(self, x, y):
         if (
@@ -206,7 +203,6 @@ class Robot:
                         11,
                     ]
                 )
-            self.goal_obstacle[tuple(k[-1])] = obstacle
 
         for i in g:
             encoded_pairs[count] = i
@@ -411,12 +407,6 @@ class Robot:
     ########################################################################################
 
     def hamiltonian_path_search(self, maze, target_states):
-        """_summary_
-
-        Args:
-            maze (_type_): _description_
-            target_obstacles (_type_): _description_
-        """
         start = [18, 1, 10]
         end = [
             target_states[0][1],
@@ -427,15 +417,19 @@ class Robot:
         for i in range(len(target_states)):
             self.simulator.robot_temp_movement = []
             self.robot_rpi_temp_movement = []
-            path = search(maze, cost, start, end)
+            path = search(maze, cost, start, end, self.simulator.obstacles)
 
             # Path movement
+            num_moves = len([num for row in path for num in row if num not in [-1, 0]])
+            self.simulator.robot_temp_movement = [None] * num_moves
             for row in range(len(path)):
                 for item in range(len(path[row])):
                     if path[row][item] not in [-1, 0]:
-                        self.simulator.robot_temp_movement.insert(
-                            path[row][item], [row, item]
-                        )
+                        self.simulator.robot_temp_movement[path[row][item] - 1] = [
+                            row,
+                            item,
+                        ]
+
             tempStart = start
             for j in range(len(self.simulator.robot_temp_movement)):
                 move = [
@@ -445,6 +439,8 @@ class Robot:
                     [tempStart[0], tempStart[1] - 1],  # W
                 ]
                 direction = [Bearing.NORTH, Bearing.EAST, Bearing.SOUTH, Bearing.WEST]
+
+                # Find the ONE AND ONLY coordinate in `move` which matches self.simulator.robot_temp_movement[j]
                 for k in range(len(move)):
                     if move[k] in self.simulator.robot_temp_movement:
                         if self.bearing == direction[k]:
