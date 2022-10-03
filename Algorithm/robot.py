@@ -15,14 +15,14 @@ class Robot:
         self.map: Map = Map()
         self.y: int = config.map_size["height"] - 2
         self.x: int = 1
+        #  self.y: int = 6  # robot initial position
+        #  self.x: int = 2
         self.consecutive_forward: int = 1
         self.bearing: Bearing = Bearing.NORTH
+        #  self.bearing: Bearing = Bearing.EAST
         self.update_map: bool = True
         self.robot_rpi_temp_movement: List[str] = []
         self.prev_loc = (1, 18, Bearing.NORTH)  # (x, y, Bearing)
-        self.goal_obstacle = (
-            dict()
-        )  # {(Target state x, y, direction) : (Obstacle x, y, direction)}
 
     def validate(self, x, y):
         if (
@@ -37,10 +37,6 @@ class Robot:
 
     # recalculate center of robot
     def move(self):
-        print(
-            f"Robot moving forward... | Before = {(self.x, self.y, self.bearing)} | ",
-            end="",
-        )
         if self.bearing == Bearing.NORTH and self.check_front():
             self.y -= 1
         elif self.bearing == Bearing.EAST and self.check_front():
@@ -49,7 +45,6 @@ class Robot:
             self.y += 1
         elif self.bearing == Bearing.WEST and self.check_front():
             self.x -= 1
-        print(f"After = {(self.x, self.y, self.bearing)}")
 
     def reverse(self):
         if self.bearing == Bearing.NORTH:
@@ -63,21 +58,11 @@ class Robot:
 
     def left(self):
         # rotate anticlockwise by 90 deg
-        print(
-            f"Robot turning LEFT... | Before = {(self.x, self.y, self.bearing)} | ",
-            end="",
-        )
         self.bearing = Bearing.prev_bearing(self.bearing)
-        print(f"After = {(self.x, self.y, self.bearing)}")
 
     def right(self):
         # rotate clockwise by 90 deg
-        print(
-            f"Robot turning RIGHT... | Before = {(self.x, self.y, self.bearing)} | ",
-            end="",
-        )
         self.bearing = Bearing.next_bearing(self.bearing)
-        print(f"After = {(self.x, self.y, self.bearing)}")
 
     def get_right_bearing(self):
         return Bearing.next_bearing(self.bearing)
@@ -190,14 +175,14 @@ class Robot:
                 k.append(
                     [
                         obstacle.x,
-                        obstacle.y - 3,
+                        obstacle.y - Distance.IMAGE_CAPTURE.value,
                         12,
                     ]
                 )
             elif obstacle.direction == 11:
                 k.append(
                     [
-                        obstacle.x + 3,
+                        obstacle.x + Distance.IMAGE_CAPTURE.value,
                         obstacle.y,
                         13,
                     ]
@@ -206,19 +191,18 @@ class Robot:
                 k.append(
                     [
                         obstacle.x,
-                        obstacle.y + 3,
+                        obstacle.y + Distance.IMAGE_CAPTURE.value,
                         10,
                     ]
                 )
             else:
                 k.append(
                     [
-                        obstacle.x - 3,
+                        obstacle.x - Distance.IMAGE_CAPTURE.value,
                         obstacle.y,
                         11,
                     ]
                 )
-            self.goal_obstacle[tuple(k[-1])] = obstacle
 
         for i in g:
             encoded_pairs[count] = i
@@ -250,57 +234,179 @@ class Robot:
                         break
         for x in target_states:
             if x[2] == 10:
-                tempGoal = [x[0], x[1] - 3]
+                tempGoal = [x[0], x[1] - Distance.IMAGE_CAPTURE.value]
             elif x[2] == 11:
-                tempGoal = [x[0] + 3, x[1]]
+                tempGoal = [x[0] + Distance.IMAGE_CAPTURE.value, x[1]]
             elif x[2] == 12:
-                tempGoal = [x[0], x[1] + 3]
+                tempGoal = [x[0], x[1] + Distance.IMAGE_CAPTURE.value]
             else:
-                tempGoal = [x[0] - 3, x[1]]
+                tempGoal = [x[0] - Distance.IMAGE_CAPTURE.value, x[1]]
             self.simulator.temp_pairs.append(tempGoal)
 
         self.hamiltonian_path_search(maze, target_states)
-    
-    def go_to_image(self):
-        image = 'bullseye' # get image from rpi
+
+    ###########################################################################################
+    def fastestCar(self):
+        self.simulator.robot_movement = []
+        horiz_distance = 0
         wasd_str = []
-        
-        while (image == 'bullseye'):
-            self.simulator.robot_movement.append(Movement.LEFT)
-            self.robot_rpi_temp_movement.append(Movement.LEFT) 
-            wasd_str.append('a')
+        amount = 2  # vertical distance for the first obstacle
 
-            self.simulator.robot_movement.append(Movement.FORWARD)
-            self.robot_rpi_temp_movement.append(Movement.FORWARD) 
-            wasd_str.append('w')
+        for rounds in range(0, 2):
+            #  start = [6, 2, 11]
+            if rounds > 0:
+                amount = 5  # since second obstacle is bigger we move it vertically by a higher distance
 
+            if rounds == 0:
+                # first sensor reading
+                # TODO: get initial sensor reading
+                sensor_reading = 3
+            else:
+                # second sensor reading
+                sensor_reading = 5
+            #  self.simulator.robot_movement.append(Movement.RIGHT)
+
+            while sensor_reading > 2:  # while distance is greater than 20 cm
+                # get sensor reading
+                self.simulator.robot_movement.append(Movement.FORWARD)
+                self.robot_rpi_temp_movement.append(Movement.FORWARD)
+                wasd_str.append("w")
+                horiz_distance += 1
+                sensor_reading -= 1  # measure sensor reading
+
+            wasd_str.append("x")
+            # take picture and start image recog
+
+            if rounds > 0:
+                obs = "RIGHT"  # determined by image recognition, second round
+            else:
+                obs = "RIGHT"
+
+            if obs == "LEFT":
+                self.simulator.robot_movement.append(Movement.LEFT)
+                self.robot_rpi_temp_movement.append(Movement.LEFT)
+                wasd_str.append("a")
+                # move forward by vert amount
+                for j in range(0, amount):
+                    self.simulator.robot_movement.append(Movement.FORWARD)
+                    self.robot_rpi_temp_movement.append(Movement.FORWARD)
+                    wasd_str.append("w")
+                # turn opposite direction
+                self.simulator.robot_movement.append(Movement.RIGHT)
+                self.robot_rpi_temp_movement.append(Movement.RIGHT)
+                wasd_str.append("d")
+            elif obs == "RIGHT":
+                self.simulator.robot_movement.append(Movement.RIGHT)
+                self.robot_rpi_temp_movement.append(Movement.RIGHT)
+                wasd_str.append("d")
+                # move forward by amount
+                for k in range(0, amount):
+                    self.simulator.robot_movement.append(Movement.FORWARD)
+                    self.robot_rpi_temp_movement.append(Movement.FORWARD)
+                    wasd_str.append("w")
+                # turn opposite direction ##
+                self.simulator.robot_movement.append(Movement.LEFT)
+                self.robot_rpi_temp_movement.append(Movement.LEFT)
+                wasd_str.append("a")
+            ### it has now gone up above the obstacle and turned in the direction of travel ###
+
+            # move forward by horiz amount
+            for i in range(0, 5):
+                self.simulator.robot_movement.append(Movement.FORWARD)
+                self.robot_rpi_temp_movement.append(Movement.FORWARD)
+                wasd_str.append("w")
+                horiz_distance += 1
+            # turn opposite direction to obs
+            if obs == "LEFT":
+                self.simulator.robot_movement.append(Movement.RIGHT)
+                self.robot_rpi_temp_movement.append(Movement.RIGHT)
+                wasd_str.append("w")
+            else:
+                self.simulator.robot_movement.append(Movement.LEFT)
+                self.robot_rpi_temp_movement.append(Movement.LEFT)
+                wasd_str.append("a")
+            # move forward by amount
+            # problematic
+            for i in range(0, amount):
+                self.simulator.robot_movement.append(Movement.FORWARD)
+                self.robot_rpi_temp_movement.append(Movement.FORWARD)
+                wasd_str.append("w")
+            # turn same direction as obs
+            # straightening
+            if obs == "LEFT":
+                # if rounds == 0:
+                self.simulator.robot_movement.append(Movement.LEFT)
+                self.robot_rpi_temp_movement.append(Movement.LEFT)
+                wasd_str.append("a")
+            else:
+                # if rounds == 0:
+                self.simulator.robot_movement.append(Movement.RIGHT)
+                self.robot_rpi_temp_movement.append(Movement.RIGHT)
+                wasd_str.append("d")
+
+            ## 1 iteration finished
+
+        # come back to carpark
+        horiz_distance //= 2
+
+        if obs == "LEFT":
             self.simulator.robot_movement.append(Movement.RIGHT)
             self.robot_rpi_temp_movement.append(Movement.RIGHT)
-            wasd_str.append('d') 
+            wasd_str.append("d")
+            for i in range(0, amount):
+                self.simulator.robot_movement.append(Movement.FORWARD)
+                self.robot_rpi_temp_movement.append(Movement.FORWARD)
+                wasd_str.append("w")
+            self.simulator.robot_movement.append(Movement.RIGHT)
+            self.robot_rpi_temp_movement.append(Movement.RIGHT)
+            wasd_str.append("d")
+            # move back the horizontal distance
+            for i in range(0, horiz_distance):
+                self.simulator.robot_movement.append(Movement.FORWARD)
+                self.robot_rpi_temp_movement.append(Movement.FORWARD)
+                wasd_str.append("w")
+        else:
+            self.simulator.robot_movement.append(Movement.RIGHT)
+            self.robot_rpi_temp_movement.append(Movement.RIGHT)
+            wasd_str.append("d")
+            for i in range(0, amount):
+                self.simulator.robot_movement.append(Movement.FORWARD)
+                self.robot_rpi_temp_movement.append(Movement.FORWARD)
+                wasd_str.append("w")
+            self.simulator.robot_movement.append(Movement.RIGHT)
+            self.robot_rpi_temp_movement.append(Movement.RIGHT)
+            wasd_str.append("d")
+            # move back the horizontal distance
+            for i in range(0, horiz_distance):
+                self.simulator.robot_movement.append(Movement.FORWARD)
+                self.robot_rpi_temp_movement.append(Movement.FORWARD)
+                wasd_str.append("w")
 
+        # final bring back
+        # it crashes with the wall so need to subtract
+
+        self.simulator.robot_movement.append(Movement.RIGHT)
+        self.robot_rpi_temp_movement.append(Movement.RIGHT)
+        wasd_str.append("d")
+        for i in range(0, 3):
             self.simulator.robot_movement.append(Movement.FORWARD)
             self.robot_rpi_temp_movement.append(Movement.FORWARD)
-            wasd_str.append('w') 
+            wasd_str.append("w")
+        # final final mov
+        self.simulator.robot_movement.append(Movement.LEFT)
+        self.robot_rpi_temp_movement.append(Movement.LEFT)
+        wasd_str.append("a")
+        for i in range(0, horiz_distance):
+            self.simulator.robot_movement.append(Movement.FORWARD)
+            self.robot_rpi_temp_movement.append(Movement.FORWARD)
+            wasd_str.append("w")
 
-            self.simulator.robot_movement.append(Movement.RIGHT)
-            self.robot_rpi_temp_movement.append(Movement.RIGHT)
-            wasd_str.append('d') 
+        self.displayMovement()
+        print(wasd_str)  # wasd str to send to rpi
 
-            wasd_str.append('x')
-
-            
-            # rescan for image
-            # check if still in bounds
-    #    else:
-
+    ########################################################################################
 
     def hamiltonian_path_search(self, maze, target_states):
-        """_summary_
-
-        Args:
-            maze (_type_): _description_
-            target_obstacles (_type_): _description_
-        """
         start = [18, 1, 10]
         end = [
             target_states[0][1],
@@ -311,24 +417,30 @@ class Robot:
         for i in range(len(target_states)):
             self.simulator.robot_temp_movement = []
             self.robot_rpi_temp_movement = []
-            path = search(maze, cost, start, end)
+            path = search(maze, cost, start, end, self.simulator.obstacles)
 
             # Path movement
+            num_moves = len([num for row in path for num in row if num not in [-1, 0]])
+            self.simulator.robot_temp_movement = [None] * num_moves
             for row in range(len(path)):
                 for item in range(len(path[row])):
                     if path[row][item] not in [-1, 0]:
-                        self.simulator.robot_temp_movement.insert(
-                            path[row][item], [row, item]
-                        )
+                        self.simulator.robot_temp_movement[path[row][item] - 1] = [
+                            row,
+                            item,
+                        ]
+
             tempStart = start
             for j in range(len(self.simulator.robot_temp_movement)):
                 move = [
-                    [tempStart[0] - 1, tempStart[1]],
-                    [tempStart[0], tempStart[1] + 1],
-                    [tempStart[0] + 1, tempStart[1]],
-                    [tempStart[0], tempStart[1] - 1],
+                    [tempStart[0] - 1, tempStart[1]],  # N
+                    [tempStart[0], tempStart[1] + 1],  # E
+                    [tempStart[0] + 1, tempStart[1]],  # S
+                    [tempStart[0], tempStart[1] - 1],  # W
                 ]
                 direction = [Bearing.NORTH, Bearing.EAST, Bearing.SOUTH, Bearing.WEST]
+
+                # Find the ONE AND ONLY coordinate in `move` which matches self.simulator.robot_temp_movement[j]
                 for k in range(len(move)):
                     if move[k] in self.simulator.robot_temp_movement:
                         if self.bearing == direction[k]:
@@ -367,12 +479,6 @@ class Robot:
             )
             self.simulator.robot_movement.append(Movement.STOP)
             self.robot_rpi_temp_movement.append(Movement.STOP)
-            logger.debug(
-                f"Moving towards {target_states[i]} to scan obstacle {i}: {self.robot_rpi_temp_movement}",
-            )
-
-          #  go_to_image()
-
             self.simulator.movement_to_rpi.append(self.robot_rpi_temp_movement)
             start = end
             if i + 1 < len(target_states):

@@ -129,7 +129,7 @@ class Simulator:
         
         #Take first pic at the front
         
-        for i in range(4):
+        for i in range(3):
             
             wasd = []
             
@@ -137,16 +137,22 @@ class Simulator:
                 wasd.append(Movement.STOP)
 
             wasd.append(Movement.LEFT)
-
-            wasd.append(Movement.THREE_FORWARD)
+            
+            if i == 2:
+                wasd.append(Movement.FIVE_FORWARD)
 
             wasd.append(Movement.RIGHT)
             
-            wasd.append(Movement.THREE_FORWARD)
-
+            if i == 2:
+                wasd.append(Movement.REVERSE_TWO)
+            else:
+                wasd.append(Movement.REVERSE_THREE)
+            
             wasd.append(Movement.RIGHT) 
 
             wasd.append(Movement.STOP)
+            
+            wasd.append(Movement.REVERSE_THREE)
 
             self.movement_to_rpi.append(wasd)
         
@@ -165,8 +171,10 @@ class Simulator:
                     )
                     require_ack = movement.value in {
                             Movement.FORWARD.value,
-                            Movement.THREE_FORWARD.value,
+                            Movement.FIVE_FORWARD.value,
                             Movement.REVERSE.value,
+                            Movement.REVERSE_TWO.value,
+                            Movement.REVERSE_THREE.value,
                             Movement.LEFT.value,
                             Movement.RIGHT.value,
                         }
