@@ -143,7 +143,9 @@ class Simulator:
 
             wasd.append(Movement.RIGHT)
             
-            if i == 2:
+            if i == 1:
+                wasd.append(Movement.REVERSE_ONE)
+            elif i == 2:
                 wasd.append(Movement.REVERSE_TWO)
             else:
                 wasd.append(Movement.REVERSE_THREE)
@@ -173,6 +175,7 @@ class Simulator:
                             Movement.FORWARD.value,
                             Movement.FIVE_FORWARD.value,
                             Movement.REVERSE.value,
+                            Movement.REVERSE_ONE.value,
                             Movement.REVERSE_TWO.value,
                             Movement.REVERSE_THREE.value,
                             Movement.LEFT.value,

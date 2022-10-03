@@ -82,6 +82,7 @@ class Movement(Enum):
     LEFT = "a079"
     RIGHT = "d079"
     REVERSE = "s010"
+    REVERSE_ONE = "s035"
     REVERSE_TWO = "s036"
     REVERSE_THREE = "s044"
     STOP = "x"
