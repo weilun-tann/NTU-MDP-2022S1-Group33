@@ -109,7 +109,7 @@ class Distance(IntEnum):
     IMAGE_CAPTURE = 4
 
     # number of cells separation from edge of robot to edge of obstacle
-    MIN_SEPARATION = 2
+    MIN_SEPARATION = 3
 
 
 @dataclass
