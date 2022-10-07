@@ -85,7 +85,7 @@ class Simulator:
         fastest_path_button.grid(column=0, row=1, sticky="ew")
 
         fastest_car_button = ttk.Button(
-            action_pane, text="Fastest Car", command=self.findFC
+            action_pane, text="Fastest Car", command=self.fastestCar
         )
         fastest_car_button.grid(column=0, row=2, sticky="ew")
 
@@ -114,6 +114,246 @@ class Simulator:
         self.control_panel.rowconfigure(0, weight=1)
         self.update_map(full=True)
         self.root.mainloop()
+
+    ######################################################################################
+
+    def fastestCar(self):
+        # self.simulator.robot_movement = []
+        horiz_distance = 0
+        wasd = []
+        wasd2 = []
+        amount = 2  # vertical distance for the first obstacle
+
+        for rounds in range(0, 2):
+            wasd = []
+            wasd2 = []
+            #  start = [6, 2, 11]
+            if rounds > 0:
+                # second sensor reading
+                # sensor_reading = 5
+                amount = 5  # since second obstacle is bigger we move it vertically by a higher distance
+            #  self.simulator.robot_movement.append(Movement.RIGHT)
+
+            # take picture and start image recog
+            self.movement_to_rpi = ([])
+            
+            wasd.append(Movement.FOUR_FORWARD) # variable
+            horiz_distance += 4 # variable
+
+            wasd.append(Movement.STOP)
+
+            self.movement_to_rpi.append(wasd)
+
+            for i, movement_to_obstacle in enumerate(self.movement_to_rpi):
+                logger.debug(
+                    f"Sending movement (one by one) towards obstacle {i} - {movement_to_obstacle}"
+                )
+
+                for movement in movement_to_obstacle:
+
+                    # Send movement to STM - ACK is required
+                    while True:
+                        logger.debug(
+                            f"Client sending movement command to STM: {movement.value} - ACK is required only if movement is 'w/a/s/d'"
+                        )
+                        require_ack = movement.value in {
+                                Movement.FORWARD.value,
+                                Movement.FOUR_FORWARD.value,
+                                Movement.LEFT.value,
+                                Movement.RIGHT.value,
+                            }
+                        self.communicate.communicate(
+                            movement.value,
+                            listen=require_ack
+                        )
+                        
+                        if not require_ack:
+                            break
+
+                        # stop sending the same movement if STM acknowledges
+                        if self.communicate.msg == Message.ACK.value:
+                            logger.debug(
+                                f"Client received movement ACK from STM for movement='{movement}'"
+                            )
+                            self.communicate.msg = ""
+                            break
+                        else:
+                            logger.debug(
+                                f"Client did NOT receive movement ACK from STM for movement='{movement}'. Sleeping for 1 second before resending the movement..."
+                            )
+                           # time.sleep(1)
+
+                    # Send live location to Android - no ACK needed
+                    # time.sleep(5)
+        
+            logger.debug(f"before: {self.communicate.msg}")
+            self.communicate.listen_to_rpi()
+            logger.debug(f"after: {self.communicate.msg}")
+            direction = self.communicate.msg
+
+            if direction == "IMG,left":
+                wasd2.append(Movement.LEFT)
+                # move forward by vert amount
+                for j in range(0, amount):
+                    wasd2.append(Movement.FORWARD)
+                # turn opposite direction
+                wasd2.append(Movement.RIGHT)
+            elif direction == "IMG,right":
+                wasd2.append(Movement.RIGHT)
+                # move forward by amount
+                for k in range(0, amount):
+                    wasd2.append(Movement.FORWARD)
+                # turn opposite direction ##
+                wasd2.append(Movement.LEFT)
+            ### it has now gone up above the obstacle and turned in the direction of travel ###
+
+            # move forward by horiz amount
+            for i in range(0, 5):
+                wasd2.append(Movement.FORWARD)
+                horiz_distance += 1
+            # turn opposite direction to obs
+            if direction == "IMG,left":
+                wasd2.append(Movement.RIGHT)
+            else:
+                wasd2.append(Movement.LEFT)
+            # move forward by amount
+            # problematic
+            for i in range(0, amount):
+                wasd2.append(Movement.FORWARD)
+            # turn same direction as obs
+            # straightening
+
+            if direction == "IMG,left":
+                # if rounds == 0:
+                wasd2.append(Movement.LEFT)
+            else:
+                # if rounds == 0:
+                wasd2.append(Movement.RIGHT)
+            ## 1 iteration finished
+            
+            self.movement_to_rpi = ([])
+            self.movement_to_rpi.append(wasd2)
+            ##
+            for i, movement_to_obstacle in enumerate(self.movement_to_rpi):
+                logger.debug(
+                    f"Sending movement (one by one) towards obstacle {i} - {movement_to_obstacle}"
+                )
+
+                for movement in movement_to_obstacle:
+
+                    # Send movement to STM - ACK is required
+                    while True:
+                        logger.debug(
+                            f"Client sending movement command to STM: {movement.value} - ACK is required only if movement is 'w/a/s/d'"
+                        )
+                        require_ack = movement.value in {
+                                Movement.FORWARD.value,
+                                Movement.FOUR_FORWARD.value,
+                                Movement.LEFT.value,
+                                Movement.RIGHT.value,
+                            }
+                        self.communicate.communicate(
+                            movement.value,
+                            listen=require_ack
+                        )
+                        
+                        if not require_ack:
+                            break
+
+                        # stop sending the same movement if STM acknowledges
+                        if self.communicate.msg == Message.ACK.value:
+                            logger.debug(
+                                f"Client received movement ACK from STM for movement='{movement}'"
+                            )
+                            self.communicate.msg = ""
+                            break
+                        else:
+                            logger.debug(
+                                f"Client did NOT receive movement ACK from STM for movement='{movement}'. Sleeping for 1 second before resending the movement..."
+                            )
+                         #   time.sleep(1)
+
+                    # Send live location to Android - no ACK needed
+                   # time.sleep(5)
+
+        #hi
+
+        wasd3 = []
+        horiz_distance //= 2
+
+        if self.communicate.msg == "IMG,left":
+            wasd3.append(Movement.RIGHT)
+            for i in range(0, amount):
+                wasd3.append(Movement.FORWARD)
+            wasd3.append(Movement.RIGHT)
+            # move back the horizontal distance
+            for i in range(0, horiz_distance):
+                wasd3.append(Movement.FORWARD)
+        else:
+            wasd3.append(Movement.RIGHT)
+            for i in range(0, amount):
+                wasd3.append(Movement.FORWARD)
+            wasd3.append(Movement.RIGHT)
+            # move back the horizontal distance
+            for i in range(0, horiz_distance):
+                wasd3.append(Movement.FORWARD)
+
+        # final bring back
+        # it crashes with the wall so need to subtract
+
+        wasd3.append(Movement.RIGHT)
+ 
+        for i in range(0, 3):
+            wasd3.append(Movement.FORWARD)
+        # final final mov
+        wasd3.append(Movement.LEFT)
+ 
+        for i in range(0, horiz_distance):
+            wasd3.append(Movement.FORWARD)
+
+        self.movement_to_rpi = ([])
+        self.movement_to_rpi.append(wasd3)
+
+        # Send the movements back to the client
+        for i, movement_to_obstacle in enumerate(self.movement_to_rpi):
+            logger.debug(
+                f"Sending movement (one by one) towards obstacle {i} - {movement_to_obstacle}"
+            )
+
+            for movement in movement_to_obstacle:
+
+                # Send movement to STM - ACK is required
+                while True:
+                    logger.debug(
+                        f"Client sending movement command to STM: {movement.value} - ACK is required only if movement is 'w/a/s/d'"
+                    )
+                    require_ack = movement.value in {
+                            Movement.FORWARD.value,
+                            Movement.FOUR_FORWARD.value,
+                            Movement.LEFT.value,
+                            Movement.RIGHT.value,
+                        }
+                    self.communicate.communicate(
+                        movement.value,
+                        listen=require_ack
+                    )
+                    
+                    if not require_ack:
+                        break
+
+                    # stop sending the same movement if STM acknowledges
+                    if self.communicate.msg == Message.ACK.value:
+                        logger.debug(
+                            f"Client received movement ACK from STM for movement='{movement}'"
+                        )
+                        self.communicate.msg = ""
+                        break
+                    else:
+                        logger.debug(
+                            f"Client did NOT receive movement ACK from STM for movement='{movement}'. Sleeping for 1 second before resending the movement..."
+                        )
+
+    ########################################################################################
 
     def android_map_formation(self):
         self.obstacles = self.communicate.get_obstacles()
